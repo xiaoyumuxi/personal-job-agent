@@ -55,18 +55,30 @@ JobAgent 将这些步骤集中到一个本地工作台：用已确认的资料�
 - Apple Command Line Tools，用于从源码编译 Keychain 辅助程序；未安装时执行 `xcode-select --install`。
 - 可选：飞书官方 `lark-cli` 与目标多维表格。模型 API 不属于必需依赖。
 
-### 从源码启动客户端
+### 一键打开客户端
+
+已有仓库时，在 Finder 中双击根目录的 **[启动客户端.command](启动客户端.command)** 即可。首次运行会显示构建终端，自动安装锁定依赖、构建本机 `.app` 并请求 macOS 打开；之后直接打开现有应用，不再每次编译。客户端打开后可以关闭该终端窗口。
+
+首次获取项目也可以运行：
 
 ```bash
 git clone https://github.com/xiaoyumuxi/personal-job-agent.git
 cd personal-job-agent
+npm start
+```
+
+`npm start` 与双击入口调用同一脚本。启动脚本会在常见的 Homebrew、nvm、Volta 和 mise 位置寻找 Node.js 24+ / npm；已有完整 `.app` 时无需依赖 Shell 中的 Node 环境。客户端读取现有业务数据，不自动导入测试岗位。
+
+更新源码后，先在客户端按 `⌘Q` 退出，再运行 `npm run desktop:rebuild` 构建并打开新版。仅关闭窗口仍会保留客户端进程。可用 `./scripts/start-desktop.sh --check` 检查启动条件，不会安装依赖、构建或打开窗口。
+
+开发时需要每次编译当前源码并查看终端日志，可使用原有入口：
+
+```bash
 npm ci
 npm run desktop:dev
 ```
 
-此命令编译并打开 Electron 客户端，读取现有本地数据，不自动导入测试岗位。修改源码后重新执行即可；目前没有热更新开发服务器。
-
-若 npm 缓存目录存在权限问题，可改用 `npm ci --cache /private/tmp/jobagent-npm-cache`。
+目前没有热更新开发服务器。若下载 ZIP 后 `.command` 缺少执行权限，可在仓库目录执行 `bash scripts/start-desktop.sh`；Git 克隆会保留脚本的执行权限。
 
 ### 第一次使用
 
@@ -191,7 +203,7 @@ JOBAGENT_TEST_PACKAGE=1 npm run test:desktop
 
 浏览器测试使用本机 Google Chrome 和临时专用资料目录。桌面测试使用隔离数据与明确的测试替身，不会向真实企业发送测试申请。手动体验测试表单可运行 `npm run fixture` 和 `npm run fixture:seed`，详见 [本地体验指南](docs/cli.md#本地体验与验证)。
 
-已记录的验收结果为核心测试 **34/34**、浏览器回归 **16/16**、含打包启动的客户端测试 **3/3**。这些是交付时的实际记录，不是持续集成状态；执行条件及未验证项见 [基础验证记录](docs/verification.md) 与 [桌面验收记录](docs/desktop-verification.md)。
+已记录的验收结果为单元与服务测试 **44/44**（含 10 项启动脚本测试）、浏览器回归 **16/16**、含打包启动的客户端测试 **3/3**。浏览器与客户端数量来自桌面接入时的验收，启动脚本迭代复验了单元与服务测试。这些是实际执行记录，不是持续集成状态；执行条件及未验证项见 [基础验证记录](docs/verification.md) 与 [桌面验收记录](docs/desktop-verification.md)。
 
 <details>
 <summary><strong>项目结构</strong></summary>

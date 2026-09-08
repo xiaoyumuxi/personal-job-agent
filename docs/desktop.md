@@ -4,7 +4,7 @@
 
 ## 最短使用步骤
 
-1. 打开本机构建的 `release/JobAgent-darwin-arm64/JobAgent.app`（Intel 构建路径为 `darwin-x64`）。可以先通过 Finder 把应用放到固定位置，再配置调度。
+1. 在 Finder 双击仓库根目录的 [启动客户端.command](../启动客户端.command)。首次自动安装依赖、构建本机 `.app` 并请求打开，之后直接打开已有构建。也可以打开 `release/JobAgent-darwin-arm64/JobAgent.app`（Intel 构建路径为 `darwin-x64`）。可以先通过 Finder 把应用放到固定位置，再配置调度。
 2. 在“我的资料”选择 PDF / TXT / MD / JSON，审阅解析结果，逐项确认并保存。资料值放在原有 Keychain；附件保存在原有数据目录。扫描 PDF 的 OCR 不支持。
 3. 在“投递工作台”导入 CSV / TSV / XLSX，选择一个岗位，点击“辅助填写”，在抽屉核对本次披露范围后继续。导入不触发申请。
 4. 需要登录时在专用 Chrome 正常登录，再点击“已完成登录，重新检查”。需要资料时直接在抽屉回答，选择“仅本次申请”或“通用资料”。经历先绑定到具体资料记录；未识别/敏感控件仍在官网人工处理。
@@ -24,6 +24,32 @@
 ## 开发和本机构建
 
 需要 macOS、Node 24+、npm 和首次编译 Keychain 辅助程序所需的 Apple Command Line Tools。安装包内已附带辅助程序，日常运行不需要在终端编译它。
+
+### 启动脚本
+
+根目录的 `.command` 是可双击入口，与以下命令等价：
+
+```bash
+npm start
+# 或者无需 npm 本身已在 PATH 中：
+bash scripts/start-desktop.sh
+```
+
+脚本不依赖当前工作目录，也支持路径中的空格。已有完整本机应用时直接通过 macOS `open` 打开；缺少应用时寻找当前 PATH、Homebrew、nvm、Volta 或 mise 中的 Node 24+，运行 `npm ci` 与原有 `desktop:package`。构建使用临时目录中的 npm 缓存，避免全局缓存权限问题。缺少 Node/npm 或 Apple Command Line Tools 时显示明确错误。
+
+首次构建会显示终端进度；应用打开后终端可以关闭，客户端的退出与任务生命周期仍由应用管理。脚本返回成功只表示系统接受打开请求，不代表业务连接已通过检测。macOS 签名与公证状态没有变化。
+
+```bash
+# 检查本机应用或构建前提，不打开窗口或安装依赖
+./scripts/start-desktop.sh --check
+
+# 更新源码后，先在客户端按 ⌘Q 退出，再重新构建并打开
+npm run desktop:rebuild
+```
+
+默认启动复用已有 `.app`，不会自动判断源码是否更新。使用自定义 `JOBAGENT_HOME` 或修改源码进行测试时，建议使用下面的开发入口；正常双击启动使用原有默认目录或客户端保存的数据目录指针。
+
+### 源码开发与打包
 
 ```bash
 npm ci

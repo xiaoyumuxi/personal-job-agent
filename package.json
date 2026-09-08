@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "description": "macOS 个人网申助手：Chrome 辅助填写、SQLite、飞书 CLI、launchd",
   "scripts": {
+    "start": "bash scripts/start-desktop.sh",
     "dev": "tsx src/cli.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
@@ -16,6 +17,7 @@
     "desktop:build": "npm run build && node scripts/build-desktop.mjs",
     "desktop:dev": "npm run desktop:build && electron .",
     "desktop:package": "npm run desktop:build && node scripts/package-desktop.mjs",
+    "desktop:rebuild": "bash scripts/start-desktop.sh --rebuild",
     "test:desktop": "playwright test --config desktop.playwright.config.ts"
   },
   "keywords": [],

@@ -4,17 +4,17 @@
 
 ## 已执行结果
 
-| 检查 | 实际结果 |
-| --- | --- |
-| `npm run typecheck` / `npm run build` | 通过，CLI 与 Electron/React 一起类型检查 |
-| `npm test` | **34 / 34 通过**：原 28 项及新增 6 项桌面服务、协议、锁和中断恢复测试 |
-| `npm run test:browser` | **16 / 16 通过**：原 15 项及新增“写入前暂停、恢复保护人工修改”测试 |
-| `JOBAGENT_TEST_PACKAGE=1 npm run test:desktop` | **3 / 3 通过**，最终一轮 19.4 秒 |
-| `npm run desktop:package` | 成功生成本机 arm64 `.app` |
-| `npm audit` | 0 个已报告漏洞 |
-| 原 CLI `--help` / `--version` / `schedule status` | 正常；版本 0.2.0；实际 launchd 状态未安装，plist 不存在 |
-| Electron 自带 Node/SQLite 探针 | Electron 44.2.0、Node 24.20.0、SQLite 3.53.4；`node:sqlite` 可加载 |
-| 签名检查 | 只有工具链 ad-hoc 标记，TeamIdentifier 未设置；没有 Developer ID 签名或公证 |
+| 检查                                              | 实际结果                                                                    |
+| ------------------------------------------------- | --------------------------------------------------------------------------- |
+| `npm run typecheck` / `npm run build`             | 通过，CLI 与 Electron/React 一起类型检查                                    |
+| `npm test`                                        | **34 / 34 通过**：原 28 项及新增 6 项桌面服务、协议、锁和中断恢复测试       |
+| `npm run test:browser`                            | **16 / 16 通过**：原 15 项及新增“写入前暂停、恢复保护人工修改”测试          |
+| `JOBAGENT_TEST_PACKAGE=1 npm run test:desktop`    | **3 / 3 通过**，最终一轮 19.4 秒                                            |
+| `npm run desktop:package`                         | 成功生成本机 arm64 `.app`                                                   |
+| `npm audit`                                       | 0 个已报告漏洞                                                              |
+| 原 CLI `--help` / `--version` / `schedule status` | 正常；版本 0.2.0；实际 launchd 状态未安装，plist 不存在                     |
+| Electron 自带 Node/SQLite 探针                    | Electron 44.2.0、Node 24.20.0、SQLite 3.53.4；`node:sqlite` 可加载          |
+| 签名检查                                          | 只有工具链 ad-hoc 标记，TeamIdentifier 未设置；没有 Developer ID 签名或公证 |
 
 ## 三个客户端验收场景
 
@@ -56,3 +56,15 @@
 ## 修复后复验
 
 测试期间修复了 Electron 入口顶层 await 导致的就绪死锁，以及恢复任务瞬间输入组件重建导致的输入丢失。最终应用重新构建，34 项单元/服务测试、16 项 Chrome 测试和全部 3 项客户端测试均通过。打包依赖使用实际安装的 Electron 44.2.0、`@electron/packager` 20.3.0，锁文件已更新。
+
+## 启动脚本补充验收（2026-09-08）
+
+新增根目录 `启动客户端.command`、`scripts/start-desktop.sh`、`npm start` 和 `desktop:rebuild`。既有 `.app` 直接打开，首次构建调用原有打包流程。该迭代没有修改业务代码。
+
+- `npm run typecheck` 与 `npm run build`：通过。
+- `npm test`：**44/44 通过**，包含原有 34 项测试和新增 10 项启动测试。
+- 启动测试覆盖：目录含空格、不同工作目录、Finder 精简 PATH 下发现 nvm Node、首次构建、依赖安装失败、打包失败、资源缺失、运行中拒绝重建、显式重建、系统打开失败以及双击入口的退出码。
+- `/bin/bash -n`：两个 Shell 入口语法检查通过。
+- `env PATH=/usr/bin:/bin /bin/bash ./启动客户端.command --check` 与 `npm start -- --check`：均正确识别已有本机 `.app`，不依赖 Shell 初始化，也没有打开窗口或写入业务数据。
+
+启动自动化测试在显式临时目录中运行脚本，替换系统 `open`、进程检测、开发工具检测和 npm 构建命令；使用真实 Node 验证路径发现，不执行联网安装或 Launch Services 打开。它们验证脚本的分支与错误处理，不代表已完成 Finder 手工双击或生产业务连接验证。本次没有重跑浏览器与桌面套件；其既有结果和未验证范围仍如上所述。
