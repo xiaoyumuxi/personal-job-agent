@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   api,
   label,
@@ -27,9 +27,14 @@ export function SettingsPage({
   const [view, setView] = useState<SettingsView>(),
     [draft, setDraft] = useState<SettingsView["config"]>(),
     [key, setKey] = useState(""),
-    [plan, setPlan] = useState("");
-  const load = async () => {
-    const v = (await api.invoke({ method: "settings" })) as SettingsView;
+    [plan, setPlan] = useState(""),
+    [discovering, setDiscovering] = useState(false),
+    [loadError, setLoadError] = useState("");
+  const discoveryStarted = useRef(false),
+    alive = useRef(true),
+    revision = useRef(0);
+  const receive = (v: SettingsView) => {
+    if (!alive.current) return;
     setView(v);
     setDraft((d) =>
       d
@@ -41,14 +46,55 @@ export function SettingsPage({
         : v.config,
     );
   };
+  const load = async () => {
+    const id = ++revision.current;
+    const v = (await api.invoke({ method: "settings" })) as SettingsView;
+    if (id === revision.current) receive(v);
+  };
   useEffect(() => {
-    void perform(load);
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
   }, []);
   useEffect(() => {
-    void load().catch(() => {});
+    let current = true;
+    const id = ++revision.current;
+    void api
+      .invoke({ method: "settings" })
+      .then((v) => {
+        if (current && id === revision.current) receive(v as SettingsView);
+      })
+      .catch(() => {
+        if (current) setLoadError("配置读取失败，请重新打开设置页。");
+      });
+    return () => {
+      current = false;
+    };
   }, [runState]);
+  const discover = (refresh = false) => {
+    setDiscovering(true);
+    return perform(async () => {
+      await api.invoke({ method: "discoverFeishuCLI", refresh });
+      await load();
+    }).finally(() => {
+      if (alive.current) setDiscovering(false);
+    });
+  };
+  useEffect(() => {
+    if (busy || discoveryStarted.current) return;
+    discoveryStarted.current = true;
+    void discover();
+  }, [busy]);
+  if (loadError)
+    return (
+      <div className="empty" role="alert">
+        {loadError}
+      </div>
+    );
   if (!view || !draft) return <div className="empty">正在读取现有配置…</div>;
-  const d = view.doctor;
+  const d = view.doctor,
+    localCLI = view.feishuExecutable;
   const save = () =>
     perform(async () => {
       await api.invoke({
@@ -126,20 +172,46 @@ export function SettingsPage({
       <section className="panel">
         <div className="section-title">
           <h2>飞书官方 CLI</h2>
-          <Badge value={d?.feishuUserAuth || "NOT_TESTED"} />
+          <Badge
+            value={
+              localCLI?.status === "AVAILABLE"
+                ? "VALID"
+                : localCLI
+                  ? "FAILED"
+                  : "NOT_TESTED"
+            }
+          />
         </div>
         <p>
           CLI：<span className="mono">{view.config.feishu.cli}</span>
         </p>
+        <p role="status" aria-label="飞书 CLI 检测结果">
+          {discovering
+            ? "正在自动查找并验证飞书 CLI…"
+            : localCLI
+              ? `${localCLI.message}${localCLI.version ? ` · ${localCLI.version}` : ""}`
+              : busy
+                ? "等待当前任务结束后自动查找 CLI"
+                : "等待自动查找 CLI"}
+        </p>
+        {localCLI && (
+          <p className="hint">可执行文件最近检测：{date(localCLI.at)}</p>
+        )}
         <p>
-          {d?.feishuCLI || "未检测可执行文件"} · 表结构：
+          飞书授权：{label(d?.feishuUserAuth || "NOT_TESTED")} · 表结构：
           {label(d?.feishuTable || "NOT_TESTED")}
         </p>
         <div className="actions">
+          <button disabled={busy || discovering} onClick={() => discover(true)}>
+            重新查找
+          </button>
           <button disabled={busy} onClick={() => pick("feishuCLI")}>
             选择可执行文件
           </button>
-          <button disabled={busy} onClick={() => start("feishuAuth")}>
+          <button
+            disabled={busy || discovering || localCLI?.status !== "AVAILABLE"}
+            onClick={() => start("feishuAuth")}
+          >
             开始官方授权
           </button>
           <button
@@ -155,6 +227,9 @@ export function SettingsPage({
             已授权，重新验证
           </button>
         </div>
+        <p className="hint">
+          自动查找只验证本机可执行文件，不代表飞书已授权；授权和表格权限请点击“检测连接”验证。
+        </p>
         <p className="hint">
           与招聘网站登录相互独立。需本人在飞书授权页确认；CLI
           本身尚未完成应用配置时，请先按飞书官方流程配置。本版客户端不支持创建飞书应用或代填应用密钥。

@@ -12,17 +12,20 @@ import {
   writeFileSync,
   rmSync,
   realpathSync,
+  mkdirSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { Store } from "../src/db.js";
 import { initialize, readConfig, saveConfig } from "../src/config.js";
 import { KeychainVault } from "../src/vault.js";
+import { liveStates } from "../src/application/runtime.js";
 import type { Snapshot, ProfileView } from "../desktop/contract.js";
 import { textPDF, scannedPDF } from "./pdf-fixture.js";
 import { structuredResume } from "./resume-fixture.js";
 test.describe.configure({ mode: "serial" });
 let home: string, vault: KeychainVault, client: ElectronApplication | undefined;
+let discoveryCLI: string, discoveryLog: string;
 let authenticated = false,
   lastName = "",
   lastProjectName = "",
@@ -76,6 +79,8 @@ async function launch(packaged = false) {
       ...process.env,
       JOBAGENT_HOME: home,
       PATH: "/usr/bin:/bin",
+      NVM_DIR: join(home, "test-only-nvm"),
+      npm_config_prefix: "",
       ELECTRON_DISABLE_SECURITY_WARNINGS: "",
     },
     timeout: 30000,
@@ -97,7 +102,7 @@ async function stopClient() {
       const s = (await p.evaluate(() =>
         window.jobagent.invoke({ method: "snapshot" }),
       )) as Snapshot;
-      if (s.busy && s.run)
+      if (s.busy && s.run && liveStates.includes(s.run.state))
         await p.evaluate(
           (runId) =>
             window.jobagent.invoke({
@@ -125,6 +130,17 @@ async function stopClient() {
 test.beforeAll(async () => {
   home = mkdtempSync(join(tmpdir(), "jobagent-desktop-e2e-"));
   initialize(home);
+  discoveryCLI = join(home, "test-only-nvm/versions/node/v24.0.0/bin/lark-cli");
+  discoveryLog = join(home, "cli-discovery-calls.jsonl");
+  mkdirSync(join(home, "test-only-nvm/versions/node/v24.0.0/bin"), {
+    recursive: true,
+  });
+  writeFileSync(discoveryLog, "");
+  writeFileSync(
+    discoveryCLI,
+    `#!/usr/bin/env node\nconst fs=require('node:fs');const args=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(discoveryLog)},JSON.stringify(args)+'\\n');if(args.length===1&&args[0]==='--version') console.log('lark-cli version discovery-test');else process.exitCode=1;`,
+    { mode: 0o700 },
+  );
   process.env.JOBAGENT_KEYCHAIN_HELPER = resolve(
     ".desktop-runtime/keychain-helper",
   );
@@ -275,7 +291,7 @@ test("existing SQLite → one task → login yellow → answer → pause/resume 
     .getByRole("button", { name: "确认并保存" })
     .click();
   await expect(page.getByRole("status")).toContainText("回读验证");
-  await page.getByRole("button", { name: "设置与连接", exact: true }).click();
+  await verifyCLIDiscovery(page);
   await expect(
     page.getByText("最近检测：尚无记录", { exact: false }),
   ).toBeVisible();
@@ -633,11 +649,72 @@ test("structured resume records can be edited, confirmed and reimported without 
   await expect.poll(() => lastProjectName).toBe("多协议通信测试框架");
   await stopClient();
 });
+function resetCLIDiscovery() {
+  const config = readConfig(home);
+  config.feishu.cli = "lark-cli";
+  saveConfig(home, config);
+  const store = new Store(home);
+  store.setMeta("doctor", null);
+  store.setMeta("feishuExecutable", null);
+  store.close();
+}
+async function verifyCLIDiscovery(page: Page) {
+  await page.getByRole("button", { name: "设置与连接", exact: true }).click();
+  await expect(
+    page.getByRole("status", { name: "飞书 CLI 检测结果" }),
+  ).toContainText("可执行文件已验证 · lark-cli version discovery-test");
+  await expect(
+    page.getByText("飞书授权：未检测 · 表结构：未检测", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "开始官方授权", exact: true }),
+  ).toBeEnabled();
+  expect(readConfig(home).feishu.cli).toBe(discoveryCLI);
+}
+test("automatically discovers nvm CLI on settings entry without authorizing, persists and avoids duplicate probes on refresh", async () => {
+  resetCLIDiscovery();
+  const calls = () =>
+    readFileSync(discoveryLog, "utf8")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  const beforeCalls = calls().length;
+  const page = await launch();
+  const before = (await page.evaluate(() =>
+    window.jobagent.invoke({ method: "snapshot" }),
+  )) as Snapshot;
+  await verifyCLIDiscovery(page);
+  expect(calls().slice(beforeCalls)).toEqual([["--version"]]);
+  await page.getByRole("button", { name: "投递工作台", exact: true }).click();
+  await verifyCLIDiscovery(page);
+  await page.reload();
+  await verifyCLIDiscovery(page);
+  expect(calls().length).toBe(beforeCalls + 1);
+  await page.getByRole("button", { name: "重新查找", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "开始官方授权", exact: true }),
+  ).toBeEnabled();
+  expect(calls().length).toBe(beforeCalls + 2);
+  const after = (await page.evaluate(() =>
+    window.jobagent.invoke({ method: "snapshot" }),
+  )) as Snapshot;
+  expect(after.run?.runId).toBe(before.run?.runId);
+  expect(after.events).toEqual(before.events);
+  await stopClient();
+  const reopened = await launch();
+  await verifyCLIDiscovery(reopened);
+  expect(calls().slice(beforeCalls)).toEqual(
+    Array.from({ length: 3 }, () => ["--version"]),
+  );
+  await stopClient();
+});
 test("packaged app starts with Finder-like PATH, core resources and SQLite", async () => {
   test.skip(
     !process.env.JOBAGENT_TEST_PACKAGE,
     "需先构建 .app，再启用显式安装包验收",
   );
+  resetCLIDiscovery();
   const existing = new Store(home);
   const expectedIds = existing
     .jobs()
@@ -654,7 +731,7 @@ test("packaged app starts with Finder-like PATH, core resources and SQLite", asy
     window.jobagent.invoke({ method: "profile" }),
   )) as { fields: unknown[] };
   expect(profile.fields.length).toBeGreaterThan(3);
-  await page.getByRole("button", { name: "设置与连接", exact: true }).click();
+  await verifyCLIDiscovery(page);
   await page.getByRole("button", { name: "检测连接", exact: true }).click();
   await expect
     .poll(

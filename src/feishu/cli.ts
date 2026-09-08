@@ -15,11 +15,15 @@ export interface FeishuTransport {
   create(fields: Record<string, unknown>): Promise<string>;
   update(recordId: string, fields: Record<string, unknown>): Promise<void>;
 }
-const env = {
-  ...process.env,
-  LARKSUITE_CLI_NO_UPDATE_NOTIFIER: "1",
-  LARKSUITE_CLI_NO_SKILLS_NOTIFIER: "1",
-};
+export const runFeishuCLI = (file: string, args: string[], timeout = 30_000) =>
+  runFile(file, args, {
+    timeout,
+    env: {
+      ...process.env,
+      LARKSUITE_CLI_NO_UPDATE_NOTIFIER: "1",
+      LARKSUITE_CLI_NO_SKILLS_NOTIFIER: "1",
+    },
+  });
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v)
     ? (v as Record<string, unknown>)
@@ -117,8 +121,7 @@ export class FeishuCLI implements FeishuTransport {
   private fieldNames = new Map<string, string>();
   constructor(
     public config: Config["feishu"],
-    private runner: Runner = (file, args) =>
-      runFile(file, args, { timeout: 30_000, env }),
+    private runner: Runner = runFeishuCLI,
   ) {
     this.destination = config.baseToken + ":" + config.tableId;
   }

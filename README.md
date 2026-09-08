@@ -104,7 +104,7 @@ release/JobAgent-darwin-arm64/JobAgent.app  # Apple Silicon
 release/JobAgent-darwin-x64/JobAgent.app    # Intel，尚未实机验收
 ```
 
-构建产物包含独立 Node 运行时、Keychain 与本地 OCR 辅助程序；日常使用不需要打开终端。Chrome 和飞书 CLI 仍为外部依赖，客户端会发现、验证并保存可执行文件的绝对路径，也支持手动选择路径。
+构建产物包含独立 Node 运行时、Keychain 与本地 OCR 辅助程序；日常使用不需要打开终端。Chrome 和飞书 CLI 仍为外部依赖。打开设置页会自动查找、验证并保存飞书 CLI 的绝对路径（含 Homebrew、nvm 安装），也支持重新查找和手动选择；本机程序可用与飞书授权、目标表权限分别展示。
 
 目前提供本机源码构建流程，没有 Developer ID 签名、Apple 公证或自动更新。打包应用在隔离测试目录下通过了启动验证；Finder 的常规打开流程仍未完成验收。构建资源与验证范围见 [客户端文档](docs/desktop.md) 和 [桌面验收记录](docs/desktop-verification.md)。
 

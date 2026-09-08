@@ -1,6 +1,5 @@
-import { existsSync, readdirSync, accessSync, constants } from "node:fs";
-import { basename, join, isAbsolute } from "node:path";
-import { homedir } from "node:os";
+import { existsSync } from "node:fs";
+import { basename } from "node:path";
 import {
   ConfigSchema,
   saveConfig,
@@ -18,6 +17,8 @@ import type { Store } from "../db.js";
 import type { Vault } from "../vault.js";
 import type { Profile } from "../types.js";
 import { FeishuCLI } from "../feishu/cli.js";
+import { findCLI } from "../feishu/discovery.js";
+export { executable } from "../feishu/discovery.js";
 import { scheduleStatus } from "../schedule.js";
 import { jobsFromGrid, readJobs } from "../jobs.js";
 export async function importJobsFile(
@@ -99,40 +100,31 @@ export async function importProfileFile(
   });
   return loadProfile(vault);
 }
-export function executable(path: string) {
-  try {
-    if (!isAbsolute(path)) return false;
-    accessSync(path, constants.X_OK);
-    return true;
-  } catch {
-    return false;
+export async function resolveFeishuCLI(
+  store: Store,
+  config: Config,
+  dir: string,
+  searchAgain = false,
+) {
+  const result = await findCLI(config.feishu.cli, searchAgain);
+  if (result.status === "AVAILABLE" && result.path !== config.feishu.cli) {
+    config.feishu.cli = result.path;
+    saveConfig(dir, config);
+    store.setMeta("doctor", null);
   }
+  if (result.status !== "AVAILABLE") store.setMeta("doctor", null);
+  const checked = { ...result, configuredPath: config.feishu.cli };
+  store.setMeta("feishuExecutable", checked);
+  return checked;
 }
-export function discoverCLI(current: string) {
-  if (isAbsolute(current)) return current;
-  const paths = (process.env.PATH || "").split(":").filter(Boolean);
-  paths.push(
-    "/opt/homebrew/bin",
-    "/usr/local/bin",
-    join(homedir(), ".local/bin"),
-  );
-  const nvm = join(homedir(), ".nvm/versions/node");
-  if (existsSync(nvm))
-    for (const dir of readdirSync(nvm).sort().reverse())
-      paths.push(join(nvm, dir, "bin"));
-  return paths.map((p) => join(p, "lark-cli")).find(executable) || current;
-}
+export type FeishuCLICheck = Awaited<ReturnType<typeof resolveFeishuCLI>>;
 export async function doctor(
   store: Store,
   config: Config,
   dir: string,
   vault: Vault,
 ) {
-  const cliPath = discoverCLI(config.feishu.cli);
-  if (cliPath !== config.feishu.cli && executable(cliPath)) {
-    config.feishu.cli = cliPath;
-    saveConfig(dir, config);
-  }
+  const localCLI = await resolveFeishuCLI(store, config, dir);
   const result = {
     at: new Date().toISOString(),
     node: process.version,
@@ -140,8 +132,8 @@ export async function doctor(
     chrome: existsSync(config.browser.executablePath),
     chromePath: config.browser.executablePath,
     chromeProfile: profileDir(dir),
-    feishuCLIPath: cliPath,
-    feishuCLI: "不可用",
+    feishuCLIPath: config.feishu.cli,
+    feishuCLI: localCLI.version ?? "不可用",
     feishuUserAuth: "UNKNOWN",
     feishuTable: "NOT_TESTED",
     feishuConfigured:
@@ -169,17 +161,13 @@ export async function doctor(
     result.modelKeyPresent = !!(await vault.get("model-key"));
   } catch {}
   const cli = new FeishuCLI(config.feishu);
-  try {
-    const v = await cli.raw(["--version"]);
-    if (v.code === 0 && v.stdout.includes("lark-cli version"))
-      result.feishuCLI = v.stdout.trim().slice(0, 120);
-  } catch {}
-  try {
-    await cli.auth();
-    result.feishuUserAuth = "VALID";
-  } catch {
-    result.feishuUserAuth =
-      result.feishuCLI === "不可用" ? "UNKNOWN" : "AUTH_REQUIRED";
+  if (localCLI.status === "AVAILABLE") {
+    try {
+      await cli.auth();
+      result.feishuUserAuth = "VALID";
+    } catch {
+      result.feishuUserAuth = "AUTH_REQUIRED";
+    }
   }
   if (result.feishuConfigured && result.feishuUserAuth === "VALID") {
     try {

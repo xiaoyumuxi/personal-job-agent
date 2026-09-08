@@ -9,7 +9,7 @@ import {
   type Profile,
 } from "../src/types.js";
 import type { RunRecord, TaskEvent } from "../src/application/runtime.js";
-import type { doctor } from "../src/application/services.js";
+import type { doctor, FeishuCLICheck } from "../src/application/services.js";
 import type { ProfileImportInfo } from "../src/profile.js";
 export const CommandSchema = z.discriminatedUnion("method", [
   z
@@ -22,6 +22,12 @@ export const CommandSchema = z.discriminatedUnion("method", [
   z.object({ method: z.literal("snapshot") }).strict(),
   z.object({ method: z.literal("profile") }).strict(),
   z.object({ method: z.literal("settings") }).strict(),
+  z
+    .object({
+      method: z.literal("discoverFeishuCLI"),
+      refresh: z.boolean().optional(),
+    })
+    .strict(),
   z.object({ method: z.literal("history"), jobId: z.string().uuid() }).strict(),
   z
     .object({
@@ -147,6 +153,7 @@ export interface SettingsView {
   modelConnection: { status: string; at?: string };
   config: z.infer<typeof ConfigSchema>;
   doctor?: Awaited<ReturnType<typeof doctor>>;
+  feishuExecutable?: FeishuCLICheck;
   schedule: { installed: boolean; plistExists: boolean; path: string };
   timezone: string;
   daily: unknown;

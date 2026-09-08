@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, statSync, realpathSync } from "node:fs";
-import { basename, join, extname, isAbsolute } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { basename, join, extname } from "node:path";
 import { Store, attention, now } from "../src/db.js";
 import {
   dataDir,
@@ -29,7 +29,10 @@ import {
   importProfileFile,
   checkModel,
   executable,
+  resolveFeishuCLI,
+  type FeishuCLICheck,
 } from "../src/application/services.js";
+import { probeCLI } from "../src/feishu/discovery.js";
 import { applyJob } from "../src/apply.js";
 import { track } from "../src/track.js";
 import { sync, retrySync } from "../src/feishu/sync.js";
@@ -63,6 +66,8 @@ export class DesktopService {
   private done?: Promise<void>;
   private auth?: { deviceCode: string; url: string; expiresAt: number };
   private writing = false;
+  private cliDiscovery?: Promise<FeishuCLICheck>;
+  private checkedCLI?: string;
   constructor(
     private notify: () => void,
     home?: string,
@@ -212,6 +217,31 @@ export class DesktopService {
         });
     return { profile, fields, version: this.store.getMeta("profileVersion") };
   }
+  private discoverFeishuCLI(refresh = false): Promise<FeishuCLICheck> {
+    // Multiple windows/refreshes share one bounded worker operation and one lock.
+    if (this.cliDiscovery) return this.cliDiscovery;
+    const config = readConfig(this.dir);
+    const previous = this.store.getMeta<FeishuCLICheck>("feishuExecutable");
+    if (
+      !refresh &&
+      this.checkedCLI === config.feishu.cli &&
+      previous?.configuredPath === config.feishu.cli
+    )
+      return Promise.resolve(previous);
+    this.cliDiscovery = this.write(async () => {
+      const result = await resolveFeishuCLI(
+        this.store,
+        config,
+        this.dir,
+        refresh,
+      );
+      this.checkedCLI = result.configuredPath;
+      return result;
+    }).finally(() => {
+      this.cliDiscovery = undefined;
+    });
+    return this.cliDiscovery;
+  }
   async handle(raw: unknown): Promise<unknown> {
     const c = CommandSchema.parse(raw);
     if (c.method === "snapshot") return this.snapshot();
@@ -226,7 +256,11 @@ export class DesktopService {
             .all(a.id)
         : [];
     }
-    if (c.method === "settings")
+    if (c.method === "discoverFeishuCLI")
+      return this.discoverFeishuCLI(c.refresh);
+    if (c.method === "settings") {
+      const config = readConfig(this.dir);
+      const localCLI = this.store.getMeta<FeishuCLICheck>("feishuExecutable");
       return {
         home: this.dir,
         chromeProfile: profileDir(this.dir),
@@ -239,13 +273,16 @@ export class DesktopService {
         modelConnection: this.store.getMeta("modelCheck") ?? {
           status: "NOT_TESTED",
         },
-        config: readConfig(this.dir),
+        config,
+        feishuExecutable:
+          localCLI?.configuredPath === config.feishu.cli ? localCLI : undefined,
         doctor: this.store.getMeta("doctor"),
         schedule: await scheduleStatus(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         daily: this.store.task("daily"),
         authPending: !!this.auth && this.auth.expiresAt > Date.now(),
       };
+    }
     if (c.method === "start") return this.start(c);
     if (c.method === "answer") {
       if (!this.runtime) throw new Error("任务已结束，回答已过期");
@@ -393,10 +430,15 @@ export class DesktopService {
         path = join(file, "Contents/MacOS/Google Chrome");
       if (!executable(path)) throw new Error("所选文件不是可执行程序");
       if (kind === "feishuCLI") {
-        const r = await runFile(path, ["--version"]);
-        if (r.code !== 0 || !r.stdout.includes("lark-cli version"))
-          throw new Error("不是受支持的飞书官方 CLI");
-        config.feishu.cli = realpathSync(path);
+        const result = await probeCLI(path);
+        if (result.status !== "AVAILABLE") throw new Error(result.message);
+        config.feishu.cli = path;
+        this.store.setMeta("feishuExecutable", {
+          ...result,
+          configuredPath: path,
+        });
+        this.checkedCLI = path;
+        this.auth = undefined;
       } else config.browser.executablePath = path;
       saveConfig(this.dir, config);
       this.store.setMeta("doctor", null);
@@ -502,9 +544,9 @@ export class DesktopService {
       return;
     }
     if (c.operation === "feishuAuth" || c.operation === "feishuComplete") {
+      const localCLI = await resolveFeishuCLI(this.store, config, this.dir);
+      if (localCLI.status !== "AVAILABLE") throw new Error(localCLI.message);
       const cli = new FeishuCLI(config.feishu);
-      if (!isAbsolute(config.feishu.cli) || !executable(config.feishu.cli))
-        throw new Error("先检测或选择飞书 CLI 的绝对路径");
       if (c.operation === "feishuAuth") {
         r.step("通过飞书官方 CLI 请求授权链接");
         const out = await cli.raw([
