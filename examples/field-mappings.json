@@ -1,0 +1,94 @@
+[
+  {
+    "section": "基本信息",
+    "aliases": ["姓名", "中文姓名", "Full name", "Name"],
+    "path": "basic.name"
+  },
+  {
+    "section": "基本信息",
+    "aliases": ["邮箱", "电子邮箱", "Email"],
+    "path": "basic.email"
+  },
+  {
+    "section": "基本信息",
+    "aliases": ["手机", "手机号码", "电话", "Phone"],
+    "path": "basic.phone"
+  },
+  {
+    "section": "基本信息",
+    "aliases": ["城市", "居住城市", "City"],
+    "path": "basic.city"
+  },
+  {
+    "section": "基本信息",
+    "aliases": ["简历", "上传简历", "Resume"],
+    "path": "resume"
+  },
+  {
+    "section": "基本信息",
+    "aliases": ["是否有实习经历"],
+    "path": "basic.hasInternship"
+  },
+  {
+    "section": "基本信息",
+    "aliases": ["最近实习公司"],
+    "path": "basic.lastInternCompany"
+  },
+  {
+    "section": "基本信息",
+    "aliases": ["工作地点意向"],
+    "path": "basic.locations"
+  },
+  { "section": "基本信息", "aliases": ["到岗方式"], "path": "basic.workMode" },
+  { "section": "基本信息", "aliases": ["可工作日"], "path": "basic.workDays" },
+  {
+    "section": "紧急联系人",
+    "aliases": ["姓名", "Name"],
+    "path": "emergency.name"
+  },
+  {
+    "section": "紧急联系人",
+    "aliases": ["电话", "手机", "Phone"],
+    "path": "emergency.phone"
+  },
+  {
+    "section": "教育经历",
+    "aliases": ["学校", "院校", "School"],
+    "path": "education.$.school"
+  },
+  {
+    "section": "教育经历",
+    "aliases": ["专业", "Major"],
+    "path": "education.$.major"
+  },
+  {
+    "section": "教育经历",
+    "aliases": ["开始时间", "开始日期", "Start date"],
+    "path": "education.$.startDate"
+  },
+  {
+    "section": "教育经历",
+    "aliases": ["结束时间", "结束日期", "End date"],
+    "path": "education.$.endDate"
+  },
+  {
+    "section": "实习经历",
+    "aliases": ["公司", "Company"],
+    "path": "experience.$.company"
+  },
+  {
+    "section": "实习经历",
+    "aliases": ["岗位", "职位", "Title"],
+    "path": "experience.$.title"
+  },
+  {
+    "section": "实习经历",
+    "aliases": ["开始时间", "开始日期", "Start date"],
+    "path": "experience.$.startDate"
+  },
+  {
+    "section": "实习经历",
+    "aliases": ["工作内容", "描述", "Description"],
+    "path": "experience.$.description"
+  }
+]

@@ -1,0 +1,73 @@
+{
+  "id": "fixture",
+  "name": "本地测试页（非真实招聘适配）",
+  "origins": ["http://127.0.0.1:43117"],
+  "tenant": "fixture",
+  "account": "default",
+  "capabilities": { "fill": true, "track": true },
+  "login": {
+    "url": "http://127.0.0.1:43117/applications",
+    "authenticated": "[data-auth=valid]",
+    "unauthenticated": "[data-auth=expired]"
+  },
+  "form": {
+    "stepSelector": "#step",
+    "sections": [
+      { "selector": "#basic", "name": "基本信息" },
+      { "selector": "#emergency", "name": "紧急联系人" }
+    ],
+    "fields": [],
+    "repeats": [
+      {
+        "section": "教育经历",
+        "container": "#education",
+        "records": ".education-record",
+        "kind": "education",
+        "add": "#add-education"
+      },
+      {
+        "section": "实习经历",
+        "container": "#experience",
+        "records": ".experience-record",
+        "kind": "experience"
+      }
+    ],
+    "next": [
+      {
+        "selector": "#next",
+        "from": "basic",
+        "to": "experience",
+        "safe": true
+      },
+      {
+        "selector": "#review",
+        "from": "experience",
+        "to": "review",
+        "safe": true
+      }
+    ],
+    "receipt": {
+      "selector": "#receipt",
+      "text": "申请已收到",
+      "jobCodeSelector": "#receipt-code"
+    }
+  },
+  "tracking": {
+    "url": "http://127.0.0.1:43117/applications",
+    "ready": "#applications",
+    "rows": ".application-row",
+    "jobCode": ".code",
+    "batch": ".batch",
+    "status": ".status",
+    "next": "#next-page",
+    "nextSafe": true,
+    "end": "#end",
+    "pageMarker": "#page-number",
+    "maxPages": 5,
+    "statusMap": {
+      "简历筛选": { "stage": "SCREENING", "outcome": "PENDING" },
+      "面试中": { "stage": "INTERVIEW", "outcome": "PENDING" },
+      "不合适": { "stage": "CLOSED", "outcome": "REJECTED" }
+    }
+  }
+}

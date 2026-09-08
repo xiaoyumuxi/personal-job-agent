@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "facts": {
+    "basic.name": {
+      "state": "confirmed",
+      "value": "测试本人",
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "basic.email": {
+      "state": "confirmed",
+      "value": "test@example.invalid",
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "basic.phone": {
+      "state": "confirmed",
+      "value": "13800000000",
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "basic.hasInternship": {
+      "state": "confirmed",
+      "value": "yes",
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "basic.lastInternCompany": {
+      "state": "confirmed",
+      "value": "虚构测试公司",
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "basic.locations": {
+      "state": "confirmed",
+      "value": ["上海", "深圳"],
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "basic.workMode": {
+      "state": "confirmed",
+      "value": "远程",
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "basic.workDays": {
+      "state": "confirmed",
+      "value": ["周一", "周五"],
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "emergency.name": {
+      "state": "confirmed",
+      "value": "测试联系人",
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "education.master.school": {
+      "state": "confirmed",
+      "value": "测试硕士学校",
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "education.master.startDate": {
+      "state": "confirmed",
+      "value": "2024-09-01",
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "education.bachelor.school": {
+      "state": "confirmed",
+      "value": "测试本科学校",
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "education.bachelor.startDate": {
+      "state": "confirmed",
+      "value": "2020-09-01",
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "experience.intern.company": {
+      "state": "confirmed",
+      "value": "测试实习公司",
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "experience.intern.startDate": {
+      "state": "confirmed",
+      "value": "2025-01-01",
+      "discloseTo": ["http://127.0.0.1:43117"]
+    },
+    "experience.intern.description": {
+      "state": "confirmed",
+      "value": "仅用于自动化测试的文字",
+      "discloseTo": ["http://127.0.0.1:43117"]
+    }
+  },
+  "records": {
+    "education": ["bachelor", "master"],
+    "experience": ["intern"]
+  }
+}

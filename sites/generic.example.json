@@ -1,0 +1,28 @@
+{
+  "id": "your-company",
+  "name": "请替换为本人合法访问的真实招聘站点",
+  "origins": ["https://careers.example.com"],
+  "pathPrefix": "/",
+  "tenant": "your-company",
+  "account": "default",
+  "capabilities": { "fill": true, "track": false },
+  "login": {
+    "url": "https://careers.example.com/my-applications",
+    "authenticated": "[data-testid=application-list]",
+    "unauthenticated": "form[data-testid=login]"
+  },
+  "form": {
+    "stepSelector": "[data-step]",
+    "sections": [{ "selector": "#personal-info", "name": "基本信息" }],
+    "fields": [
+      {
+        "selector": "#candidate-name",
+        "path": "basic.name",
+        "section": "基本信息",
+        "required": true
+      }
+    ],
+    "repeats": [],
+    "next": []
+  }
+}

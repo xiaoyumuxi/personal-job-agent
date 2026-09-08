@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "facts": {
+    "basic.name": { "state": "missing" },
+    "basic.email": { "state": "missing" },
+    "basic.phone": { "state": "missing" },
+    "basic.city": { "state": "missing" },
+    "emergency.name": { "state": "missing" },
+    "emergency.phone": { "state": "missing" },
+    "education.my_education.school": { "state": "missing" },
+    "education.my_education.major": { "state": "missing" },
+    "education.my_education.startDate": { "state": "missing" },
+    "education.my_education.endDate": { "state": "missing" },
+    "experience.my_internship.company": { "state": "missing" },
+    "experience.my_internship.startDate": { "state": "missing" },
+    "experience.my_internship.description": { "state": "missing" }
+  },
+  "records": { "education": ["my_education"], "experience": ["my_internship"] }
+}

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.jobagent/
+*.sqlite*
+playwright-report/
+test-results/
+.DS_Store
+.env*
+.jobagent-fixture/

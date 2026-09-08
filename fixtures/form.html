@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="zh">
+  <meta charset="utf-8" /><title>JobAgent 复杂表单测试 fixture</title>
+  <style>
+    body {
+      font: 16px system-ui;
+      max-width: 920px;
+      margin: 32px auto;
+      padding: 0 20px;
+    }
+    label {
+      display: block;
+      margin: 14px 0;
+    }
+    input,
+    select,
+    textarea,
+    button {
+      font: inherit;
+      padding: 7px;
+    }
+    fieldset,
+    section {
+      margin: 18px 0;
+      padding: 16px;
+      border: 1px solid #bbb;
+    }
+    .warning {
+      background: #fff2c5;
+      padding: 16px;
+    }
+    .error {
+      color: #a20;
+    }
+    [hidden] {
+      display: none !important;
+    }
+    .education-record {
+      border-left: 4px solid #888;
+      padding-left: 18px;
+      margin: 18px 0;
+    }
+  </style>
+  <h1>JobAgent 测试页面</h1>
+  <p class="warning">
+    仅供本地测试，所有公司与进度均为测试数据。这里不代表真实招聘站点支持。
+  </p>
+  <div id="auth" data-auth="expired">测试会话未登录</div>
+  <button type="button" id="login">fixture：模拟本人登录</button
+  ><button type="button" id="expire">fixture：使登录失效</button>
+  <div id="content" hidden>
+    <div id="apply-view" hidden>
+      <form id="application-form" novalidate>
+        <h2 id="step" data-step="basic">基本资料</h2>
+        <div id="basic-step">
+          <section id="basic" data-section="基本信息">
+            <h3>基本信息</h3>
+            <label
+              >姓名<input id="name" name="name" required minlength="2"
+            /></label>
+            <label
+              >邮箱<input id="email" name="email" type="email" required
+            /></label>
+            <label
+              >手机<input
+                id="phone"
+                name="phone"
+                type="tel"
+                data-optional="true"
+            /></label>
+            <label
+              >是否有实习经历<select id="has-internship" required>
+                <option value="">请选择</option>
+                <option value="yes">是</option>
+                <option value="no">否</option>
+              </select></label
+            >
+            <label id="conditional" hidden
+              >最近实习公司<input id="last-company"
+            /></label>
+            <label
+              >工作地点意向<select id="locations" multiple data-optional="true">
+                <option value="sh">上海</option>
+                <option value="bj">北京</option>
+                <option value="sz">深圳</option>
+              </select></label
+            >
+            <fieldset aria-label="到岗方式">
+              <legend>到岗方式</legend>
+              <label
+                ><input
+                  type="radio"
+                  name="mode"
+                  value="onsite"
+                  required
+                />现场</label
+              ><label
+                ><input
+                  type="radio"
+                  name="mode"
+                  value="remote"
+                  required
+                />远程</label
+              >
+            </fieldset>
+            <fieldset aria-label="可工作日">
+              <legend>可工作日</legend>
+              <label
+                ><input
+                  type="checkbox"
+                  name="day"
+                  value="mon"
+                  data-optional="true"
+                />周一</label
+              ><label
+                ><input
+                  type="checkbox"
+                  name="day"
+                  value="fri"
+                  data-optional="true"
+                />周五</label
+              >
+            </fieldset>
+            <label
+              >简历<input
+                id="resume"
+                type="file"
+                accept=".pdf,.txt"
+                data-optional="true"
+            /></label>
+          </section>
+          <section id="emergency" data-section="紧急联系人">
+            <h3>紧急联系人</h3>
+            <label>姓名<input id="emergency-name" required /></label>
+          </section>
+          <section id="education" data-section="教育经历">
+            <h3>教育经历</h3>
+            <div
+              class="education-record"
+              data-record="first"
+              data-kind="education"
+            >
+              <label>学校<input name="school" required /></label
+              ><label
+                >开始时间<input name="start" type="date" required
+              /></label>
+            </div>
+            <div
+              class="education-record"
+              data-record="second"
+              data-kind="education"
+            >
+              <label>学校<input name="school" required /></label
+              ><label
+                >开始时间<input name="start" type="date" required
+              /></label>
+            </div>
+            <button type="button" id="add-education">增加教育经历</button>
+          </section>
+          <div role="alert" class="error" id="validation" hidden>
+            请修正必填字段
+          </div>
+          <button type="button" id="next">下一步</button>
+        </div>
+        <div id="experience-step" hidden>
+          <section id="experience" data-section="实习经历">
+            <h3>实习经历</h3>
+            <div
+              class="experience-record"
+              data-record="work"
+              data-kind="experience"
+            >
+              <label>公司<input name="company" required /></label
+              ><label>开始时间<input name="start" type="date" required /></label
+              ><label
+                >工作内容<textarea
+                  name="description"
+                  data-optional="true"
+                ></textarea>
+              </label>
+            </div>
+          </section>
+          <button type="button" id="review">下一步：审核</button>
+        </div>
+        <div id="review-step" hidden>
+          <h3>人工审核和提交</h3>
+          <label
+            ><input
+              id="agreement"
+              type="checkbox"
+              required
+            />本人同意声明和协议</label
+          ><button type="button" id="final-submit">提交申请</button
+          ><button type="button" id="unknown-submit">
+            提交但不返回明确回执
+          </button>
+        </div>
+      </form>
+      <div id="receipt" hidden>申请已收到</div>
+      <div id="receipt-code" hidden>J001</div>
+      <iframe title="额外信息" src="/frame"></iframe>
+    </div>
+    <div id="list-view" hidden>
+      <h2>本人申请列表（fixture）</h2>
+      <div id="applications"></div>
+      <span id="page-number">1</span
+      ><button type="button" id="next-page">下一页</button
+      ><span id="end" hidden>列表结束</span>
+    </div>
+  </div>
+  <script>
+    const $ = (s) => document.querySelector(s);
+    let pageNum = 1;
+    function auth() {
+      const valid = localStorage.getItem("fixture-login") === "yes";
+      $("#auth").dataset.auth = valid ? "valid" : "expired";
+      $("#auth").textContent = valid
+        ? "测试账户本人：已登录"
+        : "测试会话未登录";
+      $("#content").hidden = !valid;
+      $("#login").hidden = valid;
+    }
+    $("#login").onclick = () => {
+      localStorage.setItem("fixture-login", "yes");
+      auth();
+    };
+    $("#expire").onclick = () => {
+      localStorage.removeItem("fixture-login");
+      auth();
+    };
+    auth();
+    $("#apply-view").hidden = location.pathname === "/applications";
+    $("#list-view").hidden = location.pathname !== "/applications";
+    $("#has-internship").onchange = () => {
+      const show = $("#has-internship").value === "yes";
+      $("#conditional").hidden = !show;
+      $("#last-company").required = show;
+    };
+    $("#resume").onchange = () => {
+      if ($("#resume").files.length)
+        $("#name").value = "上传解析候选（须人工确认）";
+    };
+    $("#add-education").onclick = () => {
+      const div = document.createElement("div");
+      div.className = "education-record";
+      div.dataset.record = crypto.randomUUID();
+      div.dataset.kind = "education";
+      div.innerHTML =
+        '<label>学校<input name="school" required></label><label>开始时间<input name="start" type="date" required></label>';
+      $("#education").insertBefore(div, $("#add-education"));
+    };
+    function next(from, to) {
+      const controls = [
+        ...document.querySelectorAll(
+          "#" + from + "-step input, #" + from + "-step select",
+        ),
+      ].filter((e) => e.getBoundingClientRect().height > 0);
+      if (controls.some((e) => !e.checkValidity())) {
+        $("#validation").hidden = false;
+        return;
+      }
+      $("#" + from + "-step").hidden = true;
+      $("#" + to + "-step").hidden = false;
+      $("#step").dataset.step = to;
+      $("#step").textContent = to;
+      $("#validation").hidden = true;
+    }
+    $("#next").onclick = () => next("basic", "experience");
+    $("#review").onclick = () => next("experience", "review");
+    $("#final-submit").onclick = () => {
+      if (!$("#agreement").checked) return;
+      $("#application-form").hidden = true;
+      $("#receipt").hidden = false;
+      $("#receipt-code").hidden = false;
+    };
+    $("#unknown-submit").onclick = () => {
+      $("#application-form").hidden = true;
+    };
+    function list() {
+      const rows =
+        pageNum === 1
+          ? [["J001", "fixture-2026", "简历筛选"]]
+          : [["J002", "fixture-2026", "面试中"]];
+      $("#applications").innerHTML = rows
+        .map(
+          ([code, batch, status]) =>
+            '<section class="application-row"><span class="code">' +
+            code +
+            '</span> <span class="batch">' +
+            batch +
+            '</span> <span class="status">' +
+            status +
+            "</span></section>",
+        )
+        .join("");
+      $("#page-number").textContent = String(pageNum);
+      $("#next-page").disabled = pageNum === 2;
+      $("#end").hidden = pageNum !== 2;
+    }
+    $("#next-page").onclick = () => {
+      pageNum++;
+      list();
+    };
+    list();
+  </script>
+</html>

@@ -1,0 +1,49 @@
+{
+  "name": "personal-job-agent",
+  "version": "0.1.0",
+  "description": "macOS 个人网申助手：Chrome 辅助填写、SQLite、飞书 CLI、launchd",
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:browser": "playwright test",
+    "test:browser:headed": "playwright test --headed",
+    "fixture": "tsx fixtures/server.ts",
+    "check": "npm run typecheck && npm test && npm run test:browser",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"fixtures/*.{ts,html}\" \"*.{json,ts,md}\" \"{docs,examples,sites}/**/*.{md,json}\"",
+    "fixture:seed": "tsx fixtures/seed.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "commander": "^15.0.0",
+    "csv-parse": "^7.0.2",
+    "exceljs": "^4.4.0",
+    "pdfjs-dist": "^6.3.289",
+    "playwright": "^1.63.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.5.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "bin": {
+    "jobagent": "dist/src/cli.js"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
+  }
+}

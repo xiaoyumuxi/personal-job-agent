@@ -1,0 +1,108 @@
+[
+  {
+    "name": "本地申请 ID",
+    "type": "text"
+  },
+  {
+    "name": "公司",
+    "type": "text"
+  },
+  {
+    "name": "岗位",
+    "type": "text"
+  },
+  {
+    "name": "招聘批次",
+    "type": "text"
+  },
+  {
+    "name": "官网链接",
+    "type": "text"
+  },
+  {
+    "name": "投递时间",
+    "type": "text"
+  },
+  {
+    "name": "官网原始状态",
+    "type": "text"
+  },
+  {
+    "name": "标准化阶段",
+    "type": "text"
+  },
+  {
+    "name": "招聘结果",
+    "type": "text"
+  },
+  {
+    "name": "授权状态",
+    "type": "text"
+  },
+  {
+    "name": "查询状态",
+    "type": "text"
+  },
+  {
+    "name": "同步状态",
+    "type": "text"
+  },
+  {
+    "name": "最近查询尝试时间",
+    "type": "text"
+  },
+  {
+    "name": "最近成功查询时间",
+    "type": "text"
+  },
+  {
+    "name": "下一项待办",
+    "type": "text"
+  },
+  {
+    "name": "错误摘要",
+    "type": "text"
+  },
+  {
+    "name": "attention_status",
+    "type": "select",
+    "multiple": false,
+    "options": [
+      {
+        "name": "NORMAL",
+        "hue": "Gray",
+        "lightness": "Lighter"
+      },
+      {
+        "name": "AUTH_REQUIRED",
+        "hue": "Yellow",
+        "lightness": "Lighter"
+      },
+      {
+        "name": "RETRY_EXHAUSTED",
+        "hue": "Red",
+        "lightness": "Lighter"
+      }
+    ]
+  },
+  {
+    "name": "重试次数",
+    "type": "number"
+  },
+  {
+    "name": "截止时间",
+    "type": "text"
+  },
+  {
+    "name": "优先级",
+    "type": "text"
+  },
+  {
+    "name": "暂停跟踪",
+    "type": "checkbox"
+  },
+  {
+    "name": "人工备注",
+    "type": "text"
+  }
+]

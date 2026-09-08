@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "maxRetries": 3,
+  "maxSteps": 15,
+  "maxActions": 100,
+  "siteFiles": [],
+  "feishu": {
+    "enabled": false,
+    "cli": "lark-cli",
+    "baseToken": "",
+    "tableId": ""
+  },
+  "model": {
+    "enabled": false,
+    "endpoint": "https://api.openai.com/v1/chat/completions",
+    "name": "",
+    "consent": false
+  },
+  "schedule": { "hour": 9, "minute": 0 },
+  "notifications": true
+}
