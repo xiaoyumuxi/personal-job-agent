@@ -1,6 +1,6 @@
-# 飞书主表与一次性整行填色
+# 飞书主表、投递模板与整行填色
 
-本项目只通过 **飞书官方 `lark-cli`** 接入。本次检查的是 **1.0.78**；没有调用飞书网页自动化，也没有自动切换机器人身份。用户身份当前过期，没有可供测试的目标表，因此 **没有创建真实 Base、没有写入记录、没有核验真实表格颜色**。
+本项目只通过 **飞书官方 `lark-cli`** 接入，当前核查版本为 **1.0.78**。本轮按用户截图更新默认字段、状态标签和三个视图，详见[新版投递跟踪模板](feishu-template.md)。已有旧版表格继续兼容；本轮没有创建真实 Base、写入记录或核验真实飞书颜色。
 
 ## 已核查的官方资料和本机命令
 
@@ -33,10 +33,11 @@ lark-cli base +record-upsert --base-token BASE --table-id TABLE [--record-id REC
 lark-cli auth login --domain base
 lark-cli auth status --json --verify
 npm run dev -- feishu schema
+npm run dev -- feishu template
 npm run dev -- feishu create
 ```
 
-`feishu create` 先展示完整字段，再要求本人确认。它将创建一个 Base 和其中一张主表，并显示官方 CLI 的真实返回。使用返回的 token 和 table ID 连接：
+`feishu schema` 和 `feishu template` 分别预览字段、字段及视图，不访问飞书。`feishu create` 先展示完整配置，再要求本人确认。它创建一个 Base 和主表，先保存并显示真实坐标，再配置 Grid、投递状态看板和投递清单。视图失败也不能重新盲建 Base；连接已建好的表后，可以用 `feishu views` 重试视图配置。使用返回的 token 和 table ID 连接：
 
 ```bash
 npm run dev -- feishu connect YOUR_REAL_BASE_TOKEN YOUR_REAL_TABLE_ID
@@ -47,9 +48,9 @@ npm run dev -- sync
 
 建表请求开始前会保存意图。若建表超时或进程中断，`feishu create` 不会再次盲建：先在本人飞书中查明是否已建好，再用 `connect`。本版不自动清除建表意图。若确定没有创建，请在备份后使用一个新的 JobAgent 数据目录重新创建，然后把返回坐标配置回原目录，避免直接删除业务数据。
 
-## 字段
+## 旧版字段兼容
 
-完整机器可读结构在 `examples/feishu-fields.json`；代码与 CLI `feishu schema` 使用同一结构。
+以下是早期版本字段，仍可直接同步，无需重命名。新建表改用[新版模板](feishu-template.md)，以“公司”为主字段，前七列对应截图。当前机器可读配置在 `examples/feishu-fields.json` 和 `examples/feishu-template.json`；代码与 CLI 预览使用同一结构。
 
 | 字段                               | 类型                                           | 管理方                     |
 | ---------------------------------- | ---------------------------------------------- | -------------------------- |

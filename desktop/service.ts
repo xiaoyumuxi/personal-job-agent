@@ -33,6 +33,8 @@ import {
   type FeishuCLICheck,
 } from "../src/application/services.js";
 import { probeCLI } from "../src/feishu/discovery.js";
+import { configureTemplateViews } from "../src/feishu/template.js";
+import { mainColumns, templateViews } from "../src/feishu/schema.js";
 import { applyJob } from "../src/apply.js";
 import { track } from "../src/track.js";
 import { sync, retrySync } from "../src/feishu/sync.js";
@@ -261,6 +263,9 @@ export class DesktopService {
     if (c.method === "settings") {
       const config = readConfig(this.dir);
       const localCLI = this.store.getMeta<FeishuCLICheck>("feishuExecutable");
+      const views = this.store.getMeta<{ destination: string; at: string }>(
+        "feishuTemplateViews",
+      );
       return {
         home: this.dir,
         chromeProfile: profileDir(this.dir),
@@ -281,6 +286,15 @@ export class DesktopService {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         daily: this.store.task("daily"),
         authPending: !!this.auth && this.auth.expiresAt > Date.now(),
+        feishuTemplate: {
+          columns: mainColumns,
+          views: templateViews.map((v) => v.name),
+          verifiedAt:
+            views?.destination ===
+            `${config.feishu.baseToken}:${config.feishu.tableId}`
+              ? views.at
+              : undefined,
+        },
       };
     }
     if (c.method === "start") return this.start(c);
@@ -541,6 +555,26 @@ export class DesktopService {
       r.step("向配置模型发送不含个人资料的连通性测试（可能计费）");
       const v = await checkModel(this.store, config, this.vault);
       if (v.status !== "VALID") throw new Error("模型未验证");
+      return;
+    }
+    if (c.operation === "feishuViews") {
+      if (!config.feishu.baseToken || !config.feishu.tableId)
+        throw new Error("请先保存实际目标 Base token 和 Table ID");
+      await r.request({
+        kind: "confirm",
+        message: `将配置已保存目标表 ${config.feishu.baseToken} / ${config.feishu.tableId} 的 Grid、投递状态看板、投递清单。新增缺少的视图；重设同名视图的可见列、看板分组和清单排序。记录和字段保持原样；旧版字段需先按文档手动调整或新建模板表。请确认目标及影响后继续。`,
+      });
+      const localCLI = await resolveFeishuCLI(this.store, config, this.dir);
+      if (localCLI.status !== "AVAILABLE") throw new Error(localCLI.message);
+      await configureTemplateViews(
+        this.store,
+        new FeishuCLI(config.feishu),
+        checkpoint,
+        (message) => r.step(message),
+      );
+      r.step(
+        "三个模板视图已配置，并已从飞书回读验证。整行条件填色仍需在飞书中设置。 ",
+      );
       return;
     }
     if (c.operation === "feishuAuth" || c.operation === "feishuComplete") {

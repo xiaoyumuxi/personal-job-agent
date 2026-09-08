@@ -46,6 +46,8 @@ export interface Job {
   account: string;
   referral: string;
   source: string;
+  applicationChannel?: string;
+  note?: string;
   channel: "READY" | "NEEDS_CHANNEL";
   dedupWarning?: string;
 }
@@ -83,6 +85,7 @@ export interface Application {
   priority: string;
   paused: boolean;
   note: string;
+  applicationChannel?: string;
   deadline: string;
   revision: number;
 }

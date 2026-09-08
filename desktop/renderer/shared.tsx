@@ -51,6 +51,7 @@ const words: Record<string, string> = {
   retryTrack: "重试查询",
   feishuAuth: "飞书授权",
   feishuComplete: "验证飞书授权",
+  feishuViews: "配置飞书模板视图",
 };
 export const label = (v?: string) => (v ? words[v] || v : "—");
 export const date = (v?: string | null) =>

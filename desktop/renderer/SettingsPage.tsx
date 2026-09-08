@@ -273,6 +273,32 @@ export function SettingsPage({
           />
           启用同步，允许向该表同步岗位与申请进度
         </label>
+        <details>
+          <summary>投递跟踪模板与视图</summary>
+          <p>{view.feishuTemplate.columns.join(" · ")}</p>
+          <p>
+            视图：{view.feishuTemplate.views.join("、")}
+            。看板按投递状态分组，清单按投递日期倒序。
+          </p>
+          <p className="hint">
+            投递状态与登录、查询、同步状态独立；备注和投递渠道保留人工修改。没有可靠投递日期时留空。
+          </p>
+          <button
+            disabled={
+              busy ||
+              localCLI?.status !== "AVAILABLE" ||
+              !view.config.feishu.baseToken ||
+              !view.config.feishu.tableId
+            }
+            onClick={() => start("feishuViews")}
+          >
+            配置模板视图
+          </button>
+          <p className="hint">
+            使用已保存的目标表，先在任务详情中确认影响，再执行配置。视图最近回读验证：
+            {date(view.feishuTemplate.verifiedAt)}。
+          </p>
+        </details>
         <p className="hint">
           本地标色不代表飞书已更新；只有远端写入确认后才显示同步成功。新建表仍可使用现有
           CLI，客户端暂不支持。

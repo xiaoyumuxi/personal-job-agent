@@ -42,6 +42,7 @@ export const CommandSchema = z.discriminatedUnion("method", [
         "modelCheck",
         "feishuAuth",
         "feishuComplete",
+        "feishuViews",
         "retrySync",
         "retryTrack",
       ]),
@@ -158,6 +159,7 @@ export interface SettingsView {
   timezone: string;
   daily: unknown;
   authPending: boolean;
+  feishuTemplate: { columns: string[]; views: string[]; verifiedAt?: string };
 }
 export interface DesktopAPI {
   invoke(command: Command): Promise<unknown>;

@@ -124,7 +124,7 @@ export class Store {
       .prepare("SELECT id FROM applications WHERE job_id=?")
       .get(jobId);
     if (r) return this.app(String(r.id));
-    this.job(jobId);
+    const job = this.job(jobId);
     const a: Application = {
       id: randomUUID(),
       jobId,
@@ -146,7 +146,8 @@ export class Store {
       syncRetries: 0,
       priority: "",
       paused: false,
-      note: "",
+      note: job.note ?? "",
+      applicationChannel: job.applicationChannel,
       deadline: "",
       revision: 1,
     };

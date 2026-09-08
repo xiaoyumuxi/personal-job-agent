@@ -6,13 +6,22 @@ import type { Job, Site } from "./types.js";
 import { safeUrl, findSite } from "./config.js";
 export const HEADERS: Record<string, string[]> = {
   company: ["公司", "公司名称", "企业", "company"],
-  title: ["岗位", "职位", "岗位名称", "职位名称", "title", "position"],
+  title: [
+    "岗位",
+    "投递岗位",
+    "职位",
+    "岗位名称",
+    "职位名称",
+    "title",
+    "position",
+  ],
   batch: ["批次", "招聘批次", "batch"],
   jobCode: ["岗位编号", "职位编号", "岗位id", "jobid", "jobcode"],
   url: [
     "投递入口",
     "投递链接",
     "官网链接",
+    "岗位链接",
     "申请链接",
     "链接",
     "url",
@@ -21,6 +30,8 @@ export const HEADERS: Record<string, string[]> = {
   referral: ["内推", "内推信息", "内推码", "referral"],
   account: ["账户", "account"],
   tenant: ["站点租户", "tenant"],
+  applicationChannel: ["投递渠道"],
+  note: ["备注", "人工备注"],
 };
 export interface Cell {
   text: string;
@@ -137,6 +148,10 @@ export function jobsFromGrid(
         account,
         referral: get("referral"),
         source: `${grid.source}:${index + 2}`,
+        ...(get("applicationChannel")
+          ? { applicationChannel: get("applicationChannel").slice(0, 100) }
+          : {}),
+        ...(get("note") ? { note: get("note").slice(0, 2000) } : {}),
         channel: url ? ("READY" as const) : ("NEEDS_CHANNEL" as const),
       },
     ];

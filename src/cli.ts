@@ -31,7 +31,11 @@ import { applyJob } from "./apply.js";
 import { track } from "./track.js";
 import { sync, pullControls, retrySync } from "./feishu/sync.js";
 import { FeishuCLI } from "./feishu/cli.js";
-import { tableFields } from "./feishu/schema.js";
+import { tableFields, templateViews } from "./feishu/schema.js";
+import {
+  configureTemplateViews,
+  createdBaseTarget,
+} from "./feishu/template.js";
 import { alert, writeReport } from "./notify.js";
 import {
   installSchedule,
@@ -438,6 +442,33 @@ const feishu = program
   .description("通过已检查的飞书官方 CLI 接入");
 feishu.command("schema").action(() => output(tableFields));
 feishu
+  .command("template")
+  .description("预览截图布局的字段和视图，不访问飞书")
+  .action(() =>
+    output({ version: 2, fields: tableFields, views: templateViews }),
+  );
+feishu
+  .command("views")
+  .description("预览并确认后配置已连接新版表格的三个模板视图")
+  .action(() =>
+    state(async ({ store, config }) => {
+      if (!config.feishu.baseToken || !config.feishu.tableId)
+        throw new Error("请先连接目标表格");
+      output({
+        baseToken: config.feishu.baseToken,
+        tableId: config.feishu.tableId,
+        views: templateViews,
+      });
+      if (
+        !(await yes(
+          "将新增缺少的视图，并重设同名视图的可见字段、看板分组和清单排序。不会更改记录或字段。确认配置？",
+        ))
+      )
+        return;
+      output(await configureTemplateViews(store, new FeishuCLI(config.feishu)));
+    }),
+  );
+feishu
   .command("connect <baseToken> <tableId>")
   .description("验证真实目标表结构后保存同步配置")
   .action((baseToken, tableId) =>
@@ -462,7 +493,7 @@ feishu
         throw new Error(
           "已有建表意图/结果；请核对飞书后用 feishu connect，禁止重复建表",
         );
-      output(tableFields);
+      output({ fields: tableFields, views: templateViews });
       if (!(await yes("确认使用飞书用户身份新建“个人网申助手 / 投递主表”？")))
         return;
       const cli = new FeishuCLI(config.feishu);
@@ -474,6 +505,13 @@ feishu
       const result = await cli.createBase();
       store.setMeta("feishuCreateResult", result);
       output(result);
+      const target = createdBaseTarget(result);
+      output(
+        await configureTemplateViews(
+          store,
+          new FeishuCLI({ ...config.feishu, ...target }),
+        ),
+      );
       console.log(
         "使用返回的真实 base token、table id 执行 feishu connect；填色须按 docs/feishu.md 配置，当前未验证。",
       );

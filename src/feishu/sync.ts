@@ -3,7 +3,7 @@ import type { Application, Outbox } from "../types.js";
 import { Store } from "../db.js";
 import { AgentError, classify, failureState, delay } from "../errors.js";
 import { alert, clearAlert, writeReport } from "../notify.js";
-import { autoFields, readControls } from "./schema.js";
+import { autoFields, initialManualFields, readControls } from "./schema.js";
 import { FeishuCLI, type FeishuTransport } from "./cli.js";
 export async function sync(
   store: Store,
@@ -69,12 +69,16 @@ export async function sync(
             "FEISHU_CREATE_UNCERTAIN_RECONCILE_REQUIRED",
             true,
           );
-        const payload = autoFields(a, store.job(a.jobId));
+        const job = store.job(a.jobId);
+        const payload = autoFields(a, job, remote.templateVersion);
         if (!recordId) {
           // Persist intent before issuing a create; crash/timeout never causes blind recreation.
           o.uncertain = true;
           store.setOutbox(o);
-          recordId = await remote.create(payload);
+          recordId = await remote.create({
+            ...payload,
+            ...initialManualFields(a, job, remote.templateVersion),
+          });
           store.map(a.id, remote.destination, recordId);
         } else await remote.update(recordId, payload);
         a.syncStatus = "OK";

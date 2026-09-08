@@ -20,6 +20,7 @@ import { Store } from "../src/db.js";
 import { initialize, readConfig, saveConfig } from "../src/config.js";
 import { KeychainVault } from "../src/vault.js";
 import { liveStates } from "../src/application/runtime.js";
+import { tableFields } from "../src/feishu/schema.js";
 import type { Snapshot, ProfileView } from "../desktop/contract.js";
 import { textPDF, scannedPDF } from "./pdf-fixture.js";
 import { structuredResume } from "./resume-fixture.js";
@@ -671,6 +672,97 @@ async function verifyCLIDiscovery(page: Page) {
   ).toBeEnabled();
   expect(readConfig(home).feishu.cli).toBe(discoveryCLI);
 }
+test("template views require confirmation and are verified through the real desktop worker", async () => {
+  const file = join(home, "template-test-cli"),
+    stateFile = join(home, "template-test-state.json");
+  writeFileSync(
+    stateFile,
+    JSON.stringify({ views: [], properties: {}, calls: [] }),
+  );
+  writeFileSync(
+    file,
+    `#!/usr/bin/env node
+const fs=require('node:fs'), file=${JSON.stringify(stateFile)}, fields=${JSON.stringify(tableFields)}, state=JSON.parse(fs.readFileSync(file,'utf8')), args=process.argv.slice(2), arg=(key)=>args[args.indexOf(key)+1];
+state.calls.push(args); let result;
+if(args[0]==='--version') result='lark-cli version template-test';
+else if(args.includes('--help')) result='--filter-json --offset --field-id --record-id --json';
+else if(args[0]==='auth') result=JSON.stringify({identities:{user:{available:true,status:'ready'}},verified:true});
+else {
+ let data, cmd=args[1], property=cmd.match(/^\\+view-(set|get)-(.*)$/);
+ if(cmd==='+field-list') data={fields:fields.map((f,i)=>({...f,id:'fld_'+i})),total:fields.length};
+ else if(cmd==='+view-list') data={views:state.views,total:state.views.length};
+ else if(cmd==='+view-create'){const v={...JSON.parse(arg('--json')),id:'vew_'+state.views.length};state.views.push(v);data={views:[v]};}
+ else if(property){const key=arg('--view-id')+':'+property[2], wrapper=property[2]==='visible-fields'?'visible_fields':property[2];if(property[1]==='set') state.properties[key]=JSON.parse(arg('--json'));data={[wrapper]:state.properties[key]};}
+ else {process.exitCode=1;data={};}
+ result=JSON.stringify({ok:!process.exitCode,identity:'user',data});
+}
+fs.writeFileSync(file,JSON.stringify(state));console.log(result);`,
+    { mode: 0o700 },
+  );
+  const config = readConfig(home);
+  config.feishu = {
+    enabled: false,
+    cli: file,
+    baseToken: "TEST_ONLY_BASE",
+    tableId: "TEST_ONLY_TABLE",
+  };
+  saveConfig(home, config);
+  const page = await launch();
+  await page.getByRole("button", { name: "设置与连接", exact: true }).click();
+  await expect(
+    page.getByRole("status", { name: "飞书 CLI 检测结果" }),
+  ).toContainText("template-test");
+  await page.getByText("投递跟踪模板与视图", { exact: true }).click();
+  await expect(
+    page.getByText(
+      "公司 · 投递岗位 · 投递渠道 · 投递日期 · 投递状态 · 岗位链接 · 备注",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "配置模板视图", exact: true }).click();
+  await expect(
+    page.getByText("新增缺少的视图；重设同名视图", { exact: false }),
+  ).toBeVisible();
+  const state = () => JSON.parse(readFileSync(stateFile, "utf8"));
+  expect(state().views).toHaveLength(0);
+  expect(state().calls.every((args: string[]) => args[0] === "--version")).toBe(
+    true,
+  );
+  await page
+    .getByRole("button", { name: "我已核对，继续", exact: true })
+    .click();
+  await expect
+    .poll(
+      async () =>
+        (
+          (await page.evaluate(() =>
+            window.jobagent.invoke({ method: "snapshot" }),
+          )) as Snapshot
+        ).run?.state,
+    )
+    .toBe("COMPLETED");
+  expect(state().views.map((v: { name: string }) => v.name)).toEqual([
+    "Grid",
+    "投递状态看板",
+    "投递清单",
+  ]);
+  expect(
+    state().calls.filter(
+      (args: string[]) => args[1] === "+view-get-visible-fields",
+    ),
+  ).toHaveLength(3);
+  expect(
+    state().calls.some(
+      (args: string[]) =>
+        args[1] === "+record-upsert" && !args.includes("--help"),
+    ),
+  ).toBe(false);
+  const settings = (await page.evaluate(() =>
+    window.jobagent.invoke({ method: "settings" }),
+  )) as { feishuTemplate: { verifiedAt?: string } };
+  expect(settings.feishuTemplate.verifiedAt).toBeTruthy();
+  await stopClient();
+});
 test("automatically discovers nvm CLI on settings entry without authorizing, persists and avoids duplicate probes on refresh", async () => {
   resetCLIDiscovery();
   const calls = () =>

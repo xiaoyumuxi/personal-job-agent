@@ -2,7 +2,12 @@ import { z } from "zod";
 import type { Config } from "../config.js";
 import { AgentError } from "../errors.js";
 import { runFile, type ProcessResult } from "../process.js";
-import { tableFields, manualFields } from "./schema.js";
+import {
+  tableFields,
+  legacyTableFields,
+  manualFieldNames,
+  type TemplateVersion,
+} from "./schema.js";
 export type Runner = (file: string, args: string[]) => Promise<ProcessResult>;
 export interface RemoteRow {
   id: string;
@@ -10,6 +15,7 @@ export interface RemoteRow {
 }
 export interface FeishuTransport {
   destination: string;
+  templateVersion?: TemplateVersion;
   check(): Promise<void>;
   find(appId: string): Promise<RemoteRow[]>;
   create(fields: Record<string, unknown>): Promise<string>;
@@ -118,6 +124,7 @@ export function parseRows(data: Record<string, unknown>): RemoteRow[] {
 }
 export class FeishuCLI implements FeishuTransport {
   destination: string;
+  templateVersion?: TemplateVersion;
   private fieldNames = new Map<string, string>();
   constructor(
     public config: Config["feishu"],
@@ -153,6 +160,9 @@ export class FeishuCLI implements FeishuTransport {
       this.config.tableId,
     ];
   }
+  fieldName(id: string) {
+    return this.fieldNames.get(id) ?? id;
+  }
   async auth() {
     const r = await this.raw(["auth", "status", "--json", "--verify"]);
     if (r.timedOut)
@@ -174,6 +184,8 @@ export class FeishuCLI implements FeishuTransport {
       throw new AgentError("AUTH_REQUIRED", "FEISHU_AUTH_REQUIRED");
   }
   async check() {
+    this.templateVersion = undefined;
+    this.fieldNames.clear();
     const version = await this.raw(["--version"]);
     if (version.code !== 0 || !version.stdout.includes("lark-cli version"))
       throw new AgentError("PERMANENT", "FEISHU_CLI_UNSUPPORTED");
@@ -210,22 +222,36 @@ export class FeishuCLI implements FeishuTransport {
       )
         this.fieldNames.set(String(f.id ?? f.field_id), f.name);
     }
-    for (const expected of tableFields) {
+    const definitions = [tableFields, legacyTableFields].find((schema) =>
+      schema.every((expected) =>
+        fields.some(
+          (actual) =>
+            actual.name === expected.name && actual.type === expected.type,
+        ),
+      ),
+    );
+    if (!definitions)
+      throw new AgentError("PERMANENT", "FEISHU_SCHEMA_MISMATCH");
+    for (const expected of definitions) {
       const actual = fields.find((f) => f.name === expected.name);
       if (!actual || actual.type !== expected.type)
         throw new AgentError("PERMANENT", "FEISHU_SCHEMA_MISMATCH");
       if (expected.type === "select") {
+        if (actual.multiple === true)
+          throw new AgentError("PERMANENT", "FEISHU_SCHEMA_MISMATCH");
         const options = Array.isArray(actual.options)
           ? actual.options.map((o) => obj(o).name)
           : [];
-        if (
-          ["NORMAL", "AUTH_REQUIRED", "RETRY_EXHAUSTED"].some(
-            (o) => !options.includes(o),
-          )
-        )
-          throw new AgentError("PERMANENT", "FEISHU_ATTENTION_OPTIONS_MISSING");
+        if (expected.options?.some((o) => !options.includes(o.name)))
+          throw new AgentError(
+            "PERMANENT",
+            expected.name === "attention_status"
+              ? "FEISHU_ATTENTION_OPTIONS_MISSING"
+              : "FEISHU_TEMPLATE_OPTIONS_MISSING",
+          );
       }
     }
+    this.templateVersion = definitions === tableFields ? 2 : 1;
   }
   async find(appId: string) {
     const rows: RemoteRow[] = [];
@@ -240,7 +266,10 @@ export class FeishuCLI implements FeishuTransport {
         }),
         "--field-id",
         "本地申请 ID",
-        ...manualFields.flatMap((f) => ["--field-id", f]),
+        ...manualFieldNames(this.templateVersion ?? 2).flatMap((f) => [
+          "--field-id",
+          f,
+        ]),
         "--offset",
         String(offset),
         "--limit",

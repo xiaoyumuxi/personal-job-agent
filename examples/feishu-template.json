@@ -1,0 +1,358 @@
+{
+  "version": 2,
+  "fields": [
+    {
+      "name": "公司",
+      "type": "text"
+    },
+    {
+      "name": "投递岗位",
+      "type": "text"
+    },
+    {
+      "name": "投递渠道",
+      "type": "select",
+      "multiple": false,
+      "options": [
+        {
+          "name": "官方网站",
+          "hue": "Blue",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "内推",
+          "hue": "Purple",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "招聘平台",
+          "hue": "Wathet",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "邮件",
+          "hue": "Orange",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "微信公众号",
+          "hue": "Green",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "校园宣讲会",
+          "hue": "Turquoise",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "其他",
+          "hue": "Gray",
+          "lightness": "Lighter"
+        }
+      ]
+    },
+    {
+      "name": "投递日期",
+      "type": "datetime",
+      "style": {
+        "format": "yyyy-MM-dd"
+      }
+    },
+    {
+      "name": "投递状态",
+      "type": "select",
+      "multiple": false,
+      "options": [
+        {
+          "name": "待投递",
+          "hue": "Gray",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "填写中",
+          "hue": "Blue",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "待官网审核",
+          "hue": "Orange",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "提交待核实",
+          "hue": "Yellow",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "已投递（人工确认）",
+          "hue": "Purple",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "官网已投递",
+          "hue": "Purple",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "简历筛选",
+          "hue": "Blue",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "待测评",
+          "hue": "Orange",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "测评中",
+          "hue": "Wathet",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "测评完成",
+          "hue": "Green",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "笔试中",
+          "hue": "Wathet",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "笔试完成",
+          "hue": "Green",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "面试中",
+          "hue": "Blue",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "面试完成",
+          "hue": "Green",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "已发 Offer",
+          "hue": "Green",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "已录用",
+          "hue": "Green",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "未通过",
+          "hue": "Red",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "已撤回",
+          "hue": "Gray",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "已结束",
+          "hue": "Gray",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "待核对阶段",
+          "hue": "Gray",
+          "lightness": "Lighter"
+        }
+      ]
+    },
+    {
+      "name": "岗位链接",
+      "type": "text",
+      "style": {
+        "type": "url"
+      }
+    },
+    {
+      "name": "备注",
+      "type": "text"
+    },
+    {
+      "name": "本地申请 ID",
+      "type": "text"
+    },
+    {
+      "name": "招聘批次",
+      "type": "text"
+    },
+    {
+      "name": "投递时间",
+      "type": "text"
+    },
+    {
+      "name": "官网原始状态",
+      "type": "text"
+    },
+    {
+      "name": "标准化阶段",
+      "type": "text"
+    },
+    {
+      "name": "招聘结果",
+      "type": "text"
+    },
+    {
+      "name": "授权状态",
+      "type": "text"
+    },
+    {
+      "name": "查询状态",
+      "type": "text"
+    },
+    {
+      "name": "同步状态",
+      "type": "text"
+    },
+    {
+      "name": "最近查询尝试时间",
+      "type": "text"
+    },
+    {
+      "name": "最近成功查询时间",
+      "type": "text"
+    },
+    {
+      "name": "下一项待办",
+      "type": "text"
+    },
+    {
+      "name": "错误摘要",
+      "type": "text"
+    },
+    {
+      "name": "attention_status",
+      "type": "select",
+      "multiple": false,
+      "options": [
+        {
+          "name": "NORMAL",
+          "hue": "Gray",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "AUTH_REQUIRED",
+          "hue": "Yellow",
+          "lightness": "Lighter"
+        },
+        {
+          "name": "RETRY_EXHAUSTED",
+          "hue": "Red",
+          "lightness": "Lighter"
+        }
+      ]
+    },
+    {
+      "name": "重试次数",
+      "type": "number"
+    },
+    {
+      "name": "截止时间",
+      "type": "text"
+    },
+    {
+      "name": "优先级",
+      "type": "text"
+    },
+    {
+      "name": "暂停跟踪",
+      "type": "checkbox"
+    },
+    {
+      "name": "执行状态",
+      "type": "text"
+    },
+    {
+      "name": "提交证据",
+      "type": "text"
+    }
+  ],
+  "views": [
+    {
+      "name": "Grid",
+      "type": "grid",
+      "visible_fields": [
+        "公司",
+        "投递岗位",
+        "投递渠道",
+        "投递日期",
+        "投递状态",
+        "岗位链接",
+        "备注",
+        "本地申请 ID",
+        "招聘批次",
+        "投递时间",
+        "官网原始状态",
+        "标准化阶段",
+        "招聘结果",
+        "授权状态",
+        "查询状态",
+        "同步状态",
+        "最近查询尝试时间",
+        "最近成功查询时间",
+        "下一项待办",
+        "错误摘要",
+        "attention_status",
+        "重试次数",
+        "截止时间",
+        "优先级",
+        "暂停跟踪",
+        "执行状态",
+        "提交证据"
+      ]
+    },
+    {
+      "name": "投递状态看板",
+      "type": "kanban",
+      "visible_fields": [
+        "公司",
+        "投递岗位",
+        "投递渠道",
+        "投递日期",
+        "投递状态",
+        "岗位链接",
+        "备注",
+        "下一项待办"
+      ],
+      "group_config": [
+        {
+          "field": "投递状态",
+          "desc": false
+        }
+      ]
+    },
+    {
+      "name": "投递清单",
+      "type": "grid",
+      "visible_fields": [
+        "公司",
+        "投递岗位",
+        "投递渠道",
+        "投递日期",
+        "投递状态",
+        "岗位链接",
+        "备注",
+        "下一项待办",
+        "最近成功查询时间",
+        "授权状态",
+        "查询状态",
+        "同步状态",
+        "attention_status"
+      ],
+      "sort_config": [
+        {
+          "field": "投递日期",
+          "desc": true
+        }
+      ]
+    }
+  ]
+}
