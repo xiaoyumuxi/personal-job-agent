@@ -130,7 +130,7 @@ const profile = program
 profile
   .command("import [file]")
   .option("--paste", "交互粘贴文本")
-  .description("导入文本 PDF、TXT 或 JSON，生成待确认资料")
+  .description("导入 PDF（文字或扫描 OCR）、TXT 或 JSON，生成待确认资料")
   .action((file, opts) =>
     state(async ({ store, vault, dir }) => {
       const merged = await importProfileFile(

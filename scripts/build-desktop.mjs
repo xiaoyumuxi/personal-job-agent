@@ -12,6 +12,13 @@ execFileSync("/usr/bin/swiftc", [
   "-o",
   ".desktop-runtime/keychain-helper",
 ]);
+execFileSync("/usr/bin/swiftc", [
+  "-module-cache-path",
+  "/private/tmp/jobagent-desktop-swift-cache",
+  "src/pdf-ocr.swift",
+  "-o",
+  ".desktop-runtime/pdf-ocr-helper",
+]);
 await build({
   entryPoints: ["desktop/preload.ts"],
   bundle: true,

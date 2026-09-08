@@ -79,6 +79,49 @@ describe("desktop uses existing storage and runtime", () => {
     s.close();
     rmSync(dir, { recursive: true });
   });
+  it("waits for an in-flight profile save before shutdown and rejects duplicate writes", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "jobagent-desktop-save-"));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    class SlowVault extends MemoryVault {
+      override async set(key: string, value: string) {
+        await gate;
+        await super.set(key, value);
+      }
+    }
+    const s = new DesktopService(() => {}, dir, new SlowVault());
+    try {
+      const save = s.handle({
+        method: "saveFact",
+        path: "basic.name",
+        value: "测试保存",
+      });
+      await tick();
+      expect(s.snapshot().busy).toBe(true);
+      await expect(
+        s.handle({ method: "saveFact", path: "basic.name", value: "重复写入" }),
+      ).rejects.toThrow("任务运行中");
+      let stopped = false;
+      const stop = s.stop().then(() => {
+        stopped = true;
+      });
+      await tick();
+      expect(stopped).toBe(false);
+      release();
+      await Promise.all([save, stop]);
+      expect(s.snapshot().busy).toBe(false);
+      expect((await s.profile()).profile.facts["basic.name"]?.value).toBe(
+        "测试保存",
+      );
+    } finally {
+      release();
+      await s.stop();
+      s.close();
+      rmSync(dir, { recursive: true });
+    }
+  });
 });
 describe("structured requests and safe pause", () => {
   it("rejects wrong-run, stale and duplicate answers, rotates request on resume", async () => {

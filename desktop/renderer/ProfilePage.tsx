@@ -23,7 +23,8 @@ export function ProfilePage({
     [customPath, setCustomPath] = useState(""),
     [customValue, setCustomValue] = useState(""),
     [kind, setKind] = useState<"education" | "experience">("education"),
-    [recordId, setRecordId] = useState("");
+    [recordId, setRecordId] = useState(""),
+    [importing, setImporting] = useState(false);
   const load = async () => {
     const v = (await api.invoke({ method: "profile" })) as ProfileView;
     setView(v);
@@ -42,15 +43,20 @@ export function ProfilePage({
         </div>
         <button
           className="primary"
-          disabled={busy}
+          disabled={busy || importing}
           onClick={() =>
             perform(async () => {
-              await importProfile();
-              await load();
+              setImporting(true);
+              try {
+                await importProfile();
+                await load();
+              } finally {
+                setImporting(false);
+              }
             })
           }
         >
-          导入简历 / 资料
+          {importing ? "正在导入，请稍候…" : "导入简历 / 资料"}
         </button>
       </header>
       <div className="summary-line">
@@ -68,11 +74,19 @@ export function ProfilePage({
               : "暂无导入记录"}
           </strong>
           <small>{view?.version ? date(view.version.at) : ""}</small>
+          {view?.version?.extraction?.format === "pdf" && (
+            <small>
+              {view.version.extraction.ocrPages
+                ? `本机 OCR · ${view.version.extraction.ocrPages} 页`
+                : "PDF 文字提取"}
+            </small>
+          )}
         </div>
       </div>
       <p className="hint">
-        文本 PDF、TXT/MD、JSON 使用已有解析能力；扫描 PDF 的 OCR
-        不支持。姓名、电话和邮箱之外的经历需要人工补充或导入结构化 JSON。
+        支持文字版和扫描版 PDF、TXT/MD、JSON。扫描页自动使用 macOS 本地 OCR，
+        不上传云端，可能需要数十秒。识别结果需要本人确认；姓名、电话和邮箱之外的经历需要人工补充或导入结构化
+        JSON。
       </p>
       {groups.map((group) => (
         <section className="panel" key={group}>

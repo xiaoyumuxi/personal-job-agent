@@ -2,6 +2,8 @@
 
 验收日期：2026-09-08。平台：macOS 27.0 arm64。本轮在现有仓库上接入界面，没有迁移数据库，没有安装实际 launchd 任务，没有向企业提交申请。
 
+下方保留各次迭代的实际记录。最新 PDF / OCR 迭代结果为：类型检查与构建通过，单元/服务 **47/47**、Chrome **16/16**、客户端 **4/4**。详情见文末。
+
 ## 已执行结果
 
 | 检查                                              | 实际结果                                                                    |
@@ -68,3 +70,19 @@
 - `env PATH=/usr/bin:/bin /bin/bash ./启动客户端.command --check` 与 `npm start -- --check`：均正确识别已有本机 `.app`，不依赖 Shell 初始化，也没有打开窗口或写入业务数据。
 
 启动自动化测试在显式临时目录中运行脚本，替换系统 `open`、进程检测、开发工具检测和 npm 构建命令；使用真实 Node 验证路径发现，不执行联网安装或 Launch Services 打开。它们验证脚本的分支与错误处理，不代表已完成 Finder 手工双击或生产业务连接验证。本次没有重跑浏览器与桌面套件；其既有结果和未验证范围仍如上所述。
+
+## PDF / OCR 补充验收（2026-09-08）
+
+复现 Electron utilityProcess 下 PDF.js 未设置 workerSrc 的错误，改为加载随应用打包的本地 worker。无文字或文字较少的页面调用 macOS Vision，图片仅在内存中处理，继续使用原资料 schema、Keychain 和导入版本记录。
+
+- `npm run typecheck`、`npm run desktop:build`：通过；本地 Swift OCR 辅助程序实际编译并随 arm64 `.app` 打包。
+- `npm test`：**47/47 通过**，包含 OCR 候选状态、部分识别不清空已确认值、导入统计不含识别内容，以及退出等待资料保存、拒绝重复写入的回归。
+- `npm run test:browser`：本轮 PDF 故障修复阶段复验 **16/16 通过**；后续 OCR 接入未修改浏览器引擎。
+- `JOBAGENT_TEST_PACKAGE=1 npm run test:desktop`：**4/4 通过，最终一轮 21.7 秒**。先通过测试专用 `JOBAGENT_TEST_PACKAGE_DIR` 验证单独构建目录（23.6 秒），旧客户端退出后运行 `npm run desktop:package` 更新正式 `release` 目录，再完整复验。套件共享前序导入的测试数据，应完整串行执行；仅筛选最后一个场景会因缺少前置岗位而失败。
+- `env PATH=/usr/bin:/bin /bin/bash ./启动客户端.command --check`：正确识别新版应用；包内本地 PDF.js worker 与 arm64 OCR helper 均存在。原 CLI 导入帮助正常，已注明扫描 PDF 支持。
+- 新增第 4 类场景：开发版和打包应用均实际导入文字 PDF、含中文姓名及英文邮箱的纯图片扫描 PDF；测试没有预置文字层，没有替换 PDF.js 或 Vision。成功后回读真实 Keychain、版本、原附件字节，刷新后数据一致。
+- 空白 PDF 实际执行 OCR 后报告无可用文字，旧资料和版本保持一致；成功提示不会残留。
+- 文件选择对话框使用测试替身，导入按钮、受控 IPC、业务工作进程、PDF 解析、OCR 与 Keychain 均使用真实实现。所有简历为临时生成的虚构测试数据，未读取用户真实简历。
+- 测试显式隔离 Electron `userData` 并验证实际路径，客户端单实例锁与测试配置不会干扰日常客户端。
+
+OCR 验证覆盖清晰的一页中英文印刷体扫描件，不代表模糊、多栏、手写或所有真实简历均能准确识别。自动字段解析目前主要覆盖姓名、邮箱和电话，经历仍需本人补充。Finder 手工打开、真实官网、飞书与签名公证的未验证范围保持不变。

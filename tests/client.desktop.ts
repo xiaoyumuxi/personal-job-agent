@@ -3,15 +3,23 @@ import {
   expect,
   _electron as electron,
   type ElectronApplication,
+  type Page,
 } from "@playwright/test";
 import { createServer } from "node:http";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+  rmSync,
+  realpathSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { Store } from "../src/db.js";
 import { initialize, readConfig, saveConfig } from "../src/config.js";
 import { KeychainVault } from "../src/vault.js";
-import type { Snapshot } from "../desktop/contract.js";
+import type { Snapshot, ProfileView } from "../desktop/contract.js";
+import { textPDF, scannedPDF } from "./pdf-fixture.js";
 test.describe.configure({ mode: "serial" });
 let home: string, vault: KeychainVault, client: ElectronApplication | undefined;
 let authenticated = false,
@@ -38,12 +46,17 @@ const server = createServer((req, res) => {
 async function launch(packaged = false) {
   const executablePath = packaged
     ? resolve(
-        `release/JobAgent-darwin-${process.arch}/JobAgent.app/Contents/MacOS/JobAgent`,
+        process.env.JOBAGENT_TEST_PACKAGE_DIR ||
+          `release/JobAgent-darwin-${process.arch}/JobAgent.app`,
+        "Contents/MacOS/JobAgent",
       )
     : undefined;
   client = await electron.launch({
     executablePath,
-    args: packaged ? [] : ["."],
+    args: [
+      ...(packaged ? [] : ["."]),
+      `--user-data-dir=${join(home, "electron-test-profile")}`,
+    ],
     env: {
       ...process.env,
       JOBAGENT_HOME: home,
@@ -53,6 +66,9 @@ async function launch(packaged = false) {
     timeout: 30000,
   });
   const page = await client.firstWindow();
+  expect(
+    realpathSync(await client.evaluate(({ app }) => app.getPath("userData"))),
+  ).toBe(realpathSync(join(home, "electron-test-profile")));
   await expect(
     page.getByRole("heading", { name: "投递工作台", exact: true }),
   ).toBeVisible();
@@ -414,6 +430,93 @@ test("native import bridge, real retry exhaustion colors, unknown-result guard a
   ).toBe(true);
   await stopClient();
 });
+async function verifyPDFImport(page: Page, variant: string) {
+  await page.getByRole("button", { name: "我的资料", exact: true }).click();
+  const read = () =>
+    page.evaluate(() =>
+      window.jobagent.invoke({ method: "profile" }),
+    ) as Promise<ProfileView>;
+  const before = await read();
+  const file = join(home, `${variant} 简历.pdf`);
+  const email = `${variant}-pdf@example.invalid`;
+  writeFileSync(file, textPDF(`Email: ${email} Phone: 13812345678`));
+  await client!.evaluate(({ dialog }, path) => {
+    (globalThis as any).profileFileFilters = [];
+    dialog.showOpenDialog = async (...args: any[]) => {
+      (globalThis as any).profileFileFilters = args.at(-1).filters;
+      return { canceled: false, filePaths: [path] };
+    };
+  }, file);
+  const importButton = page.getByRole("button", {
+    name: "导入简历 / 资料",
+    exact: true,
+  });
+  await expect(importButton).toBeEnabled();
+  await importButton.click();
+  await expect(page.getByRole("status")).toContainText("导入完成");
+  await expect(page.locator('[id="basic.email"]')).toHaveValue(email);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  expect(
+    await client!.evaluate(
+      () => (globalThis as any).profileFileFilters[0].extensions,
+    ),
+  ).toContain("pdf");
+  const imported = await read();
+  expect(imported.profile.facts["basic.email"]?.state).toBe("pending");
+  expect(imported.version?.revision).toBe((before.version?.revision ?? 0) + 1);
+  expect(imported.version?.file).toBe(`${variant} 简历.pdf`);
+  expect(readFileSync(imported.profile.resume!)).toEqual(readFileSync(file));
+
+  // Real Keychain persistence and renderer refresh, not a fabricated UI success.
+  await page.reload();
+  await page.getByRole("button", { name: "我的资料", exact: true }).click();
+  await expect(page.locator('[id="basic.email"]')).toHaveValue(email);
+  expect((await read()).version).toEqual(imported.version);
+
+  // This scan has no text layer; real macOS Vision must recognize its pixels.
+  writeFileSync(
+    file,
+    await scannedPDF([
+      "姓名：测试本人",
+      `Email: ${email}`,
+      "Phone: 13812345678",
+    ]),
+  );
+  await expect(importButton).toBeEnabled();
+  await importButton.click();
+  await expect(page.getByRole("status")).toContainText("导入完成", {
+    timeout: 30000,
+  });
+  await expect(
+    page.getByText("本机 OCR · 1 页", { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('[id="basic.email"]')).toHaveValue(email);
+  const recognized = await read();
+  expect(recognized.version?.extraction?.ocrPages).toBe(1);
+  expect(recognized.version?.revision).toBe(imported.version!.revision + 1);
+  const name = recognized.profile.facts["basic.name"];
+  if (name?.state === "conflict") expect(name.candidates).toContain("测试本人");
+  else expect(name?.value).toBe("测试本人");
+  expect(readFileSync(recognized.profile.resume!)).toEqual(readFileSync(file));
+
+  // Blank images still fail visibly without replacing the saved profile/version.
+  writeFileSync(file, textPDF(""));
+  await expect(importButton).toBeEnabled();
+  await importButton.click();
+  await expect(page.getByRole("alert")).toContainText(
+    "本地 OCR 都未识别出足够文字",
+    { timeout: 30000 },
+  );
+  await expect(page.getByRole("status")).toHaveCount(0);
+  expect((await read()).profile).toEqual(recognized.profile);
+  expect((await read()).version).toEqual(recognized.version);
+}
+
+test("PDF import and local OCR use real Electron and Vision; failed recognition preserves saved data", async () => {
+  const page = await launch();
+  await verifyPDFImport(page, "desktop");
+  await stopClient();
+});
 test("packaged app starts with Finder-like PATH, core resources and SQLite", async () => {
   test.skip(
     !process.env.JOBAGENT_TEST_PACKAGE,
@@ -455,5 +558,6 @@ test("packaged app starts with Finder-like PATH, core resources and SQLite", asy
   expect(plan.plist).toContain(".desktop-runtime/keychain-helper");
   expect(settings.schedule.installed).toBe(false);
   expect(await client!.evaluate(({ app }) => app.isPackaged)).toBe(true);
+  await verifyPDFImport(page, "packaged");
   await stopClient();
 });

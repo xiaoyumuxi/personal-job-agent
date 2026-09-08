@@ -8,7 +8,12 @@ import {
   profileDir,
   type Config,
 } from "../config.js";
-import { importProfile, loadProfile, saveProfile } from "../profile.js";
+import {
+  importProfile,
+  loadProfile,
+  saveProfile,
+  type ProfileImportInfo,
+} from "../profile.js";
 import type { Store } from "../db.js";
 import type { Vault } from "../vault.js";
 import type { Profile } from "../types.js";
@@ -41,11 +46,16 @@ export async function importProfileFile(
   file?: string,
   text?: string,
 ) {
-  const draft = await importProfile(file, text, dir),
+  let extraction: ProfileImportInfo | undefined;
+  const draft = await importProfile(file, text, dir, (info) => {
+      extraction = info;
+    }),
     old = await loadProfile(vault);
   for (const [k, f] of Object.entries(draft.facts)) {
     const prior = old.facts[k];
-    if (
+    if (prior?.state === "confirmed" && f.state === "missing")
+      draft.facts[k] = prior;
+    else if (
       prior?.state === "confirmed" &&
       f.value !== undefined &&
       JSON.stringify(prior.value) !== JSON.stringify(f.value)
@@ -79,6 +89,7 @@ export async function importProfileFile(
   store.setMeta("profileVersion", {
     at: new Date().toISOString(),
     file: file ? basename(file) : "粘贴文本",
+    extraction,
     revision:
       (store.getMeta<{ revision: number }>("profileVersion")?.revision ?? 0) +
       1,

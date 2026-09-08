@@ -32,7 +32,7 @@ Node 24 的 `node:sqlite` 会输出 ExperimentalWarning。这不是测试失败�
 - 文件/目录权限、实例排他锁、SQLite 重启后状态与 outbox 保留。
 - CSV/TSV 导入、XLSX 普通超链接和 HYPERLINK 字面公式、来源位置与原始内推参数。
 - 强标识岗位去重、弱标识保留独立项、歧义表头显式映射。
-- 文本 PDF **实际解析**；无文本 PDF 明确拒绝 OCR。
+- 首版文本 PDF **实际解析**；当时未实现 OCR。后续已接入 macOS Vision 扫描 PDF 识别，最新结果见 [PDF / OCR 补充验收](desktop-verification.md#pdf--ocr-补充验收2026-09-08)。
 - 首次失败加三次重试、授权不耗次数、红黄优先级及独立状态。
 - 查询缺失/partial 不覆盖上次可靠阶段；未知原始状态不推断拒绝。
 - 飞书重复同步不重复创建；超时但远端成功先对账；不确定且未找到行停止。

@@ -38,7 +38,8 @@ app_ready() {
      -f "$app/Contents/Resources/app/desktop-build/renderer.js" &&
      -f "$app/Contents/Resources/app/desktop-build/style.css" &&
      -x "$app/Contents/Resources/.desktop-runtime/node" &&
-     -x "$app/Contents/Resources/.desktop-runtime/keychain-helper" ]]
+     -x "$app/Contents/Resources/.desktop-runtime/keychain-helper" &&
+     -x "$app/Contents/Resources/.desktop-runtime/pdf-ocr-helper" ]]
 }
 
 if [[ "$mode" == --rebuild ]] || ! app_ready; then

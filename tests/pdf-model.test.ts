@@ -6,6 +6,10 @@ import { importProfile } from "../src/profile.js";
 import { suggestMappings } from "../src/model.js";
 import { MemoryVault } from "../src/vault.js";
 import type { Field } from "../src/browser/observe.js";
+import { textPDF as pdf } from "./pdf-fixture.js";
+import { recognizePDFPages } from "../src/ocr.js";
+import { importProfileFile } from "../src/application/services.js";
+vi.mock("../src/ocr.js", () => ({ recognizePDFPages: vi.fn() }));
 const states: ReturnType<typeof testState>[] = [];
 function setup() {
   const s = testState();
@@ -14,41 +18,62 @@ function setup() {
 }
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.mocked(recognizePDFPages).mockReset();
   states.splice(0).forEach((s) => s.dispose());
 });
-function pdf(text: string) {
-  const stream = `BT /F1 12 Tf 50 700 Td (${text}) Tj ET`;
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
-  ];
-  let out = "%PDF-1.4\n";
-  const offsets = [0];
-  for (let i = 0; i < objects.length; i++) {
-    offsets.push(out.length);
-    out += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`;
-  }
-  const xref = out.length;
-  out += `xref\n0 6\n0000000000 65535 f \n${offsets
-    .slice(1)
-    .map((n) => String(n).padStart(10, "0") + " 00000 n \n")
-    .join("")}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  return out;
-}
-it("实际解析文本 PDF，空白/扫描型无文本 PDF 明确拒绝 OCR", async () => {
+it("文字 PDF 直接提取；空白 PDF 自动尝试 OCR 后明确报告无文字", async () => {
   const s = setup(),
     file = join(s.dir, "resume.pdf");
   writeFileSync(file, pdf("Email: sample@example.invalid Phone: 13812345678"));
   const p = await importProfile(file, undefined, s.dir);
   expect(p.facts["basic.email"]?.value).toBe("sample@example.invalid");
   expect(p.resume).toContain("/attachments/");
+  expect(recognizePDFPages).not.toHaveBeenCalled();
   writeFileSync(file, pdf(""));
+  vi.mocked(recognizePDFPages).mockResolvedValue([{ page: 1, text: "" }]);
   await expect(importProfile(file, undefined, s.dir)).rejects.toThrow(
-    "不做 OCR",
+    "本地 OCR 都未识别出足够文字",
   );
+  expect(recognizePDFPages).toHaveBeenCalledWith(file, [1], s.dir);
+});
+it("OCR 识别结果复用原资料 schema，只产生待确认候选并报告识别来源", async () => {
+  const s = setup(),
+    file = join(s.dir, "scan.pdf");
+  writeFileSync(file, pdf(""));
+  vi.mocked(recognizePDFPages).mockResolvedValue([
+    {
+      page: 1,
+      text: "姓名：测试本人\nEmail: ocr@example.invalid\nPhone: 13812345678",
+    },
+  ]);
+  const report = vi.fn();
+  const profile = await importProfile(file, undefined, s.dir, report);
+  expect(profile.facts["basic.name"]?.value).toBe("测试本人");
+  expect(profile.facts["basic.email"]?.value).toBe("ocr@example.invalid");
+  expect(profile.facts["basic.email"]?.state).toBe("pending");
+  expect(profile.facts["basic.email"]?.discloseTo).toEqual([]);
+  expect(report).toHaveBeenCalledWith({ format: "pdf", pages: 1, ocrPages: 1 });
+});
+it("导入部分识别结果不会清空已确认资料，版本只保存非敏感识别统计", async () => {
+  const s = setup(),
+    vault = new MemoryVault(),
+    file = join(s.dir, "scan.pdf");
+  await vault.set(
+    "profile",
+    JSON.stringify({
+      facts: { "basic.name": { state: "confirmed", value: "已确认姓名" } },
+    }),
+  );
+  writeFileSync(file, pdf(""));
+  vi.mocked(recognizePDFPages).mockResolvedValue([
+    { page: 1, text: "Email: ocr@example.invalid Phone: 13812345678" },
+  ]);
+  const imported = await importProfileFile(s.store, vault, s.dir, file);
+  expect(imported.facts["basic.name"]?.value).toBe("已确认姓名");
+  expect(imported.facts["basic.name"]?.state).toBe("confirmed");
+  const version = s.store.getMeta<{ extraction: unknown }>("profileVersion");
+  expect(version?.extraction).toEqual({ format: "pdf", pages: 1, ocrPages: 1 });
+  expect(JSON.stringify(version)).not.toContain("ocr@example.invalid");
 });
 it("模型无授权零调用；只发送标签和字段路径；严格校验返回 schema", async () => {
   const s = setup(),

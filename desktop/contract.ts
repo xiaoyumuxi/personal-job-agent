@@ -5,6 +5,7 @@ import { ConfigSchema } from "../src/config.js";
 import type { Job, Application, Profile } from "../src/types.js";
 import type { RunRecord, TaskEvent } from "../src/application/runtime.js";
 import type { doctor } from "../src/application/services.js";
+import type { ProfileImportInfo } from "../src/profile.js";
 export const CommandSchema = z.discriminatedUnion("method", [
   z
     .object({
@@ -127,7 +128,12 @@ export interface Snapshot {
 export interface ProfileView {
   profile: Profile;
   fields: { path: string; label: string; section: string }[];
-  version?: { at: string; revision: number; file: string };
+  version?: {
+    at: string;
+    revision: number;
+    file: string;
+    extraction?: ProfileImportInfo;
+  };
 }
 export interface SettingsView {
   home: string;

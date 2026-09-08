@@ -5,13 +5,19 @@
 ## 最短使用步骤
 
 1. 在 Finder 双击仓库根目录的 [启动客户端.command](../启动客户端.command)。首次自动安装依赖、构建本机 `.app` 并请求打开，之后直接打开已有构建。也可以打开 `release/JobAgent-darwin-arm64/JobAgent.app`（Intel 构建路径为 `darwin-x64`）。可以先通过 Finder 把应用放到固定位置，再配置调度。
-2. 在“我的资料”选择 PDF / TXT / MD / JSON，审阅解析结果，逐项确认并保存。资料值放在原有 Keychain；附件保存在原有数据目录。扫描 PDF 的 OCR 不支持。
+2. 在“我的资料”选择 PDF / TXT / MD / JSON，审阅解析结果，逐项确认并保存。文字版 PDF 直接提取，文字较少的页面自动使用 macOS Vision 本地 OCR；版本信息会显示识别来源及 OCR 页数。资料值放在原有 Keychain，附件保存在原有数据目录。
 3. 在“投递工作台”导入 CSV / TSV / XLSX，选择一个岗位，点击“辅助填写”，在抽屉核对本次披露范围后继续。导入不触发申请。
 4. 需要登录时在专用 Chrome 正常登录，再点击“已完成登录，重新检查”。需要资料时直接在抽屉回答，选择“仅本次申请”或“通用资料”。经历先绑定到具体资料记录；未识别/敏感控件仍在官网人工处理。
 5. 本人在官网核对并最终提交后，点击“我已在官网提交，检查回执”。只有既匹配回执又匹配岗位编号才记录系统确认；未验证保留 `UNKNOWN_RESULT`，不允许盲目再次填写。也可单独记录本人在官网核查的结果，证据标记为人工确认。
 6. 在“设置与连接”检测 Chrome 和飞书 CLI，填写并保存实际 Base token / Table ID，完成官方授权后验证；在工作台点击“同步飞书”。官网与飞书登录互相独立，未配置模型不影响规则填写。
 
 岗位缺少官网入口时，可在详情中补充。配置站点规则使用“导入站点规则”，原有规则文件格式没有变化。未适配站点可用保守的通用填写，但可靠登录验证、进度查询和回执识别仍需对应规则；界面会如实显示待配置。
+
+### PDF 与本地 OCR
+
+PDF 解析和 OCR 在后台进行，导入时显示“正在导入，请稍候”。扫描页通过 macOS Vision 识别中英文，不需要模型 Key，也不会上传简历或产生临时截图文件。PDF 最大 20 MB，单次最多 20 个扫描页，OCR 超时为 120 秒；模糊、手写、复杂排版或加密文件可能需要重新导出。
+
+OCR 提取文字后继续使用同一份资料解析规则，目前主要生成姓名、邮箱和电话的候选值。经历信息仍需补全，识别结果不会自动变成已确认资料。识别失败会明确报错并保留原资料与导入版本；没有识别到的字段不会清空之前已确认的值。
 
 ## 数据位置
 
@@ -23,7 +29,7 @@
 
 ## 开发和本机构建
 
-需要 macOS、Node 24+、npm 和首次编译 Keychain 辅助程序所需的 Apple Command Line Tools。安装包内已附带辅助程序，日常运行不需要在终端编译它。
+需要 macOS、Node 24+、npm 和编译 Keychain / OCR 辅助程序所需的 Apple Command Line Tools。安装包内已附带两个辅助程序，日常运行不需要在终端编译它们。
 
 ### 启动脚本
 
@@ -62,7 +68,7 @@ npm run desktop:dev
 npm run desktop:package
 ```
 
-输出 `release/JobAgent-darwin-<本机架构>/JobAgent.app`。本轮本机为 arm64。打包脚本将 Node 可执行文件和 Swift Keychain helper 放到 `Contents/Resources/.desktop-runtime/`，核心入口位于 `Contents/Resources/app/dist/`。SQLite 使用 Electron 自带 Node 的 `node:sqlite`，没有额外的 SQLite ABI 原生扩展。
+输出 `release/JobAgent-darwin-<本机架构>/JobAgent.app`。本轮本机为 arm64。打包脚本将 Node 可执行文件、Swift Keychain helper 和 `pdf-ocr-helper` 放到 `Contents/Resources/.desktop-runtime/`，核心入口位于 `Contents/Resources/app/dist/`。PDF.js worker 通过已打包依赖的绝对模块 URL 加载。SQLite 使用 Electron 自带 Node 的 `node:sqlite`，没有额外的 SQLite ABI 原生扩展。
 
 原 CLI 命令仍可使用：
 

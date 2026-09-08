@@ -14,6 +14,7 @@ import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { writeFile, readFile, mkdir, stat } from "node:fs/promises";
 import { CommandSchema, FileKindSchema, type Snapshot } from "./contract.js";
+import { liveStates } from "../src/application/runtime.js";
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
 const entry = pathToFileURL(join(root, "desktop-build/index.html")).href;
@@ -88,11 +89,11 @@ function createWindow() {
             cancelId: 0,
             message: "当前有任务正在运行",
             detail:
-              "关闭窗口与退出应用不同。保留任务运行时，Dock 图标仍可重新打开窗口；需要补充资料时任务会等待。停止只停止后续操作，无法撤回已发出的网页操作。",
+              "关闭窗口与退出应用不同。保留任务运行时，Dock 图标仍可重新打开窗口；需要补充资料时任务会等待。停止会等待简历导入、OCR 和资料保存完成；已发出的网页操作无法撤回。",
           });
           if (answer.response === 0) return;
           if (answer.response === 1) {
-            if (state.run)
+            if (state.run && liveStates.includes(state.run.state))
               await rpc("command", {
                 method: "control",
                 runId: state.run.runId,
@@ -145,7 +146,7 @@ else {
             cancelId: 0,
             message: "退出前停止当前任务？",
             detail:
-              "会等待当前网页或网络操作结束并保存真实状态；已发出的操作无法撤回。原有 launchd 调度保持原状。",
+              "会等待当前网页、网络操作或简历导入（包括 OCR）结束并保存真实状态；已发出的操作无法撤回。原有 launchd 调度保持原状。",
           });
           if (a.response !== 1) return;
         }
@@ -179,6 +180,7 @@ else {
           : { JOBAGENT_HOME: savedHome }),
         JOBAGENT_NODE: join(runtimeRoot, "node"),
         JOBAGENT_KEYCHAIN_HELPER: join(runtimeRoot, "keychain-helper"),
+        JOBAGENT_OCR_HELPER: join(runtimeRoot, "pdf-ocr-helper"),
         PATH: [
           join(runtimeRoot),
           "/opt/homebrew/bin",

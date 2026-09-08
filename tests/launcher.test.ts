@@ -51,6 +51,7 @@ function fixture(packaged = true) {
     "Contents/Resources/app/desktop-build/style.css",
     "Contents/Resources/.desktop-runtime/node",
     "Contents/Resources/.desktop-runtime/keychain-helper",
+    "Contents/Resources/.desktop-runtime/pdf-ocr-helper",
   ];
   if (packaged)
     for (const name of files) file(join(app, name), "test only", true);

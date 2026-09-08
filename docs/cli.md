@@ -46,7 +46,9 @@ npm run dev -- profile set basic.name
 npm run dev -- profile set basic.email
 ```
 
-支持文本型 PDF、TXT/MD、粘贴文本和结构化 JSON。`profile import --paste` 进入多行粘贴，单独输入 `.end` 结束。PDF 用本地 PDF.js 提取文字，不做 OCR；无可提取文本的文件会明确拒绝。无需云模型。
+支持文字版或扫描版 PDF、TXT/MD、粘贴文本和结构化 JSON。`profile import --paste` 进入多行粘贴，单独输入 `.end` 结束。PDF 先用本地 PDF.js 提取文字，文字较少的页面自动调用 macOS Vision OCR，支持中英文且无需云模型。单份 PDF 最大 20 MB，一次最多 20 个扫描页；识别失败时保留之前的资料。
+
+CLI 首次 OCR 会使用 Apple Command Line Tools 编译本地 `pdf-ocr-helper`；已构建的桌面客户端内置该组件。扫描图片只在进程内存中处理，不生成临时截图、不上传云端。OCR 结果仍为待确认候选，不能保证自动结构化提取所有教育或工作经历。
 
 文本提取首版仅尝试姓名、邮箱、手机号；**不会编造教育经历、日期、成绩或技能**。请参照 [个人资料模板](../examples/profile.template.json) 补充 JSON，或使用 `profile set`。输入值在交互终端隐藏，不建议将敏感值写进 Shell 参数。JSON 文件中的 `confirmed` 或披露权限不会直接被采信，导入后仍须本人确认。再次导入与已确认值冲突时，保留冲突候选等待处理。
 

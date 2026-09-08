@@ -4,6 +4,13 @@
 
 ## 未发布
 
+### PDF 与本地 OCR
+
+- 修复 Electron 工作进程导入 PDF 时的 `No "GlobalWorkerOptions.workerSrc" specified.` 错误，显式加载随应用打包的本地 PDF.js worker。
+- 扫描页自动使用 macOS Vision OCR，支持中英文，不依赖模型 API 或云端上传。
+- 资料页显示导入等待状态、识别来源及 OCR 页数；识别失败保留旧版本，缺失字段保留已确认值。
+- 新增开发版及打包应用的真实 PDF / OCR 导入回归，使用隔离的虚构资料与 Keychain 测试条目。
+
 ### 启动体验
 
 - 增加可在 Finder 双击的“启动客户端.command”，首次安装依赖并构建，后续直接打开本机 `.app`。

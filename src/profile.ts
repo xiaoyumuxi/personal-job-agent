@@ -4,6 +4,12 @@ import { randomUUID } from "node:crypto";
 import { ProfileSchema, type Profile, type Fact, type Value } from "./types.js";
 import type { Vault } from "./vault.js";
 import type { Store } from "./db.js";
+import { recognizePDFPages } from "./ocr.js";
+export interface ProfileImportInfo {
+  format: "pdf" | "text" | "json";
+  pages?: number;
+  ocrPages?: number;
+}
 export const blankProfile = (): Profile => ProfileSchema.parse({});
 export async function loadProfile(vault: Vault): Promise<Profile> {
   const raw = await vault.get("profile");
@@ -45,6 +51,7 @@ export async function importProfile(
   file: string | undefined,
   text: string | undefined,
   dir: string,
+  extracted?: (info: ProfileImportInfo) => void,
 ): Promise<Profile> {
   let p: Profile;
   if (file) {
@@ -52,6 +59,7 @@ export async function importProfile(
       throw new Error("简历超过 20 MB");
     const ext = extname(file).toLowerCase();
     if (ext === ".json") {
+      extracted?.({ format: "json" });
       p = ProfileSchema.parse(JSON.parse(await readFile(file, "utf8")));
       // Import never grants confirmation or disclosure, even if input claims otherwise.
       for (const f of Object.values(p.facts)) {
@@ -69,37 +77,67 @@ export async function importProfile(
       }
     } else {
       if (ext === ".pdf") {
-        const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+        const { getDocument, GlobalWorkerOptions } =
+          await import("pdfjs-dist/legacy/build/pdf.mjs");
+        // PDF.js does not recognize Electron utilityProcess as Node, so its
+        // automatic worker path is unset there. Resolve the matching bundled
+        // worker explicitly; never fetch executable parser code from a CDN.
+        GlobalWorkerOptions.workerSrc = import.meta
+          .resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
         const task = getDocument({
           data: new Uint8Array(await readFile(file)),
+          // This is text extraction in a process without a DOM, not rendering.
           useSystemFonts: true,
+          disableFontFace: true,
+          isOffscreenCanvasSupported: false,
+          isImageDecoderSupported: false,
         });
-        const doc = await task.promise;
+        const pages: string[] = [];
         try {
-          const pages: string[] = [];
+          const doc = await task.promise;
           for (let i = 1; i <= doc.numPages; i++) {
             const content = await (await doc.getPage(i)).getTextContent();
             pages.push(
-              content.items.map((x) => ("str" in x ? x.str : "")).join(" "),
+              content.items
+                .map((x) => ("str" in x ? x.str + (x.hasEOL ? "\n" : " ") : ""))
+                .join(""),
             );
           }
-          text = pages.join("\n");
         } finally {
           await task.destroy();
         }
+        const scanPages = pages.flatMap((page, index) =>
+          page.replace(/\s/g, "").length < 20 ? [index + 1] : [],
+        );
+        if (scanPages.length) {
+          for (const page of await recognizePDFPages(file, scanPages, dir)) {
+            // Keep any existing text if OCR returns less useful content.
+            if (page.text.trim().length > pages[page.page - 1]!.trim().length)
+              pages[page.page - 1] = page.text;
+          }
+        }
+        text = pages.join("\n");
         if (text.trim().length < 20)
           throw new Error(
-            "PDF 没有足够可提取文本，可能是扫描件；本版不做 OCR，请粘贴文字或导入 JSON",
+            "PDF 文字提取和本地 OCR 都未识别出足够文字，请提供更清晰的扫描件，或导入 TXT/JSON",
           );
-      } else if ([".txt", ".md"].includes(ext))
+        extracted?.({
+          format: "pdf",
+          pages: pages.length,
+          ocrPages: scanPages.length,
+        });
+      } else if ([".txt", ".md"].includes(ext)) {
         text = await readFile(file, "utf8");
-      else throw new Error("个人资料仅支持文本 PDF、TXT/MD、JSON");
+        extracted?.({ format: "text" });
+      } else
+        throw new Error("个人资料仅支持 PDF（文字版或扫描版）、TXT/MD、JSON");
       p = draftFromText(text ?? "");
       if (ext === ".pdf") p.resume = await storeAttachment(file, dir);
     }
   } else {
     if (!text?.trim()) throw new Error("请提供文件或粘贴文本");
     p = draftFromText(text);
+    extracted?.({ format: "text" });
   }
   return p;
 }
