@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+import {
+  profileSelection,
+  switchProfile,
+  renameProfile,
+} from "./profile-library.js";
 import { Command } from "commander";
 import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -135,6 +140,7 @@ const profile = program
 profile
   .command("import [file]")
   .option("--paste", "交互粘贴文本")
+  .option("--update", "明确合并到当前版本；默认新建独立简历版本")
   .description("导入 PDF（文字或扫描 OCR）、TXT 或 JSON，生成待确认资料")
   .action((file, opts) =>
     state(async ({ store, vault, dir }) => {
@@ -144,6 +150,7 @@ profile
         dir,
         file,
         opts.paste ? await pasted() : undefined,
+        opts.update ? "update" : "new",
       );
       output({
         fields: Object.entries(merged.facts).map(([path, f]) => ({
@@ -152,6 +159,33 @@ profile
         })),
         next: "profile confirm 或 profile set",
       });
+    }),
+  );
+profile
+  .command("versions")
+  .description("列出可用简历版本，不输出资料值")
+  .action(() =>
+    state(async ({ vault, store }) => {
+      const { activeId, versions } = await profileSelection(vault, store);
+      output({ activeId, versions });
+    }, false),
+  );
+profile
+  .command("use <id>")
+  .description("切换当前编辑和默认使用的简历版本")
+  .action((id) =>
+    state(async ({ vault, store }) => {
+      await switchProfile(vault, store, id);
+      console.log("已切换简历版本");
+    }),
+  );
+profile
+  .command("rename <id> <name>")
+  .description("命名简历版本，例如后端开发版")
+  .action((id, name) =>
+    state(async ({ vault, store }) => {
+      await renameProfile(vault, store, id, name);
+      console.log("版本名称已保存");
     }),
   );
 profile
@@ -315,10 +349,17 @@ program
 program
   .command("apply <id>")
   .description("本人选择并授权披露后辅助填写，最终提交须手动完成")
+  .option("--profile-version <id>", "本次填写使用指定简历版本，不改变默认版本")
   .option("--profile <file>", "会话模式下临时导入已确认的结构化 JSON")
   .action((id, opts) =>
     state(async (s) => {
+      if (opts.profile && opts.profileVersion)
+        throw new Error("临时资料与已存简历版本不能同时指定");
       if (opts.profile) {
+        if (s.vault.kind !== "session")
+          throw new Error(
+            "--profile 仅用于 session 模式；持久资料请使用 profile import",
+          );
         const p = await importProfile(opts.profile, undefined, s.dir);
         console.log("会话资料：" + JSON.stringify(p));
         if (!(await yes("本人核对以上资料，全部现有值真实准确？"))) return;
@@ -326,7 +367,15 @@ program
           if (f.value !== undefined) f.state = "confirmed";
         await s.vault.set("profile", JSON.stringify(p));
       }
-      await applyJob(id, s.store, s.config, s.dir, s.vault);
+      await applyJob(
+        id,
+        s.store,
+        s.config,
+        s.dir,
+        s.vault,
+        undefined,
+        opts.profileVersion,
+      );
     }),
   );
 program

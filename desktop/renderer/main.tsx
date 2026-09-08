@@ -1,3 +1,4 @@
+import { ProfilePicker, type ProfileChoices } from "./ProfilePicker.js";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import type { Command, Snapshot, FileKind } from "../contract.js";
@@ -12,7 +13,11 @@ function App() {
     [selected, setSelected] = useState<string>(),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
-    [pending, setPending] = useState(false);
+    [pending, setPending] = useState(false),
+    [profilePick, setProfilePick] = useState<{
+      jobId: string;
+      choices: ProfileChoices;
+    }>();
   const alive = useRef(true),
     queue = useRef<Promise<void>>(Promise.resolve());
   const refresh = useCallback(() => {
@@ -66,10 +71,17 @@ function App() {
   };
   const command = (c: Command, success = "") =>
     perform(() => api.invoke(c), success);
-  const start = (
+  const start = async (
     operation: Extract<Command, { method: "start" }>["operation"],
     jobId?: string,
   ) => {
+    if (operation === "apply" && jobId) {
+      const choices = (await perform(() =>
+        api.invoke({ method: "profileVersions" }),
+      )) as ProfileChoices | undefined;
+      if (choices) setProfilePick({ jobId, choices });
+      return;
+    }
     if (jobId) setSelected(jobId);
     else setSelected("global");
     return command({ method: "start", operation, jobId });
@@ -181,6 +193,34 @@ function App() {
           </>
         )}
       </main>
+      {profilePick &&
+        (() => {
+          const target = snapshot?.rows.find(
+            (r) => r.job.id === profilePick.jobId,
+          );
+          return target ? (
+            <ProfilePicker
+              company={target.job.company}
+              title={target.job.title}
+              choices={profilePick.choices}
+              previousId={target.application?.profileId}
+              busy={busy}
+              cancel={() => setProfilePick(undefined)}
+              choose={async (profileId) => {
+                const result = await command({
+                  method: "start",
+                  operation: "apply",
+                  jobId: target.job.id,
+                  profileId,
+                });
+                if (result) {
+                  setProfilePick(undefined);
+                  setSelected(target.job.id);
+                }
+              }}
+            />
+          ) : null;
+        })()}
       {selected && snapshot && (
         <Drawer
           snapshot={snapshot}

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { draftFromText, confirmFact, loadProfile } from "../src/profile.js";
 import { orderedPDFText } from "../src/pdf-text.js";
 import { MemoryVault } from "../src/vault.js";
+import { saveProfile } from "../src/profile.js";
 import { importProfileFile } from "../src/application/services.js";
 import { testState } from "./helpers.js";
 import { mappings } from "../src/config.js";
@@ -102,7 +103,7 @@ describe("resume structure and evidence", () => {
       );
       const path = `experience.${first.records.experience[0]}.description`;
       confirmFact(first, path, first.facts[path]!.value!);
-      await vault.set("profile", JSON.stringify(first));
+      await saveProfile(vault, s.store, first);
       const again = await importProfileFile(
         s.store,
         vault,
@@ -118,6 +119,7 @@ describe("resume structure and evidence", () => {
         s.dir,
         undefined,
         structuredResume.replace("去重校验", "请求去重"),
+        "update",
       );
       expect(changed.records).toEqual(first.records);
       expect(changed.facts[path]?.state).toBe("conflict");

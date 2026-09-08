@@ -127,3 +127,7 @@ JOBAGENT_TEST_PACKAGE=1 npm run test:desktop
 实际结果见 [桌面客户端验收记录](desktop-verification.md)。真实招聘站点适配、真实飞书授权与写入、真实模型端点、Apple 签名公证以及实际 launchd 安装执行，未在本轮得到生产验证。
 
 接口参考：[Electron utilityProcess](https://www.electronjs.org/docs/latest/api/utility-process)、[Electron 沙箱](https://www.electronjs.org/docs/latest/tutorial/sandbox)、[Electron 安全建议](https://www.electronjs.org/docs/latest/tutorial/security)、[飞书 CLI v1.0.78 授权协议](https://github.com/larksuite/cli/blob/v1.0.78/cmd/auth/login.go)。
+
+## 多版本简历
+
+“我的资料”支持独立 PDF 版本、命名与默认版本切换；工作台启动填写时可为本次岗位另选版本，任务抽屉展示固定的版本与修订号。详见[多版本简历与岗位选择](resume-versions.md)。

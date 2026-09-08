@@ -1,3 +1,7 @@
+import {
+  ProfileIdSchema,
+  type ProfileVersion,
+} from "../src/profile-library.js";
 import { z } from "zod";
 import { AnswerSchema } from "../src/interaction.js";
 import { ValueSchema } from "../src/types.js";
@@ -20,7 +24,23 @@ export const CommandSchema = z.discriminatedUnion("method", [
     })
     .strict(),
   z.object({ method: z.literal("snapshot") }).strict(),
-  z.object({ method: z.literal("profile") }).strict(),
+  z
+    .object({
+      method: z.literal("profile"),
+      profileId: ProfileIdSchema.optional(),
+    })
+    .strict(),
+  z.object({ method: z.literal("profileVersions") }).strict(),
+  z
+    .object({ method: z.literal("switchProfile"), profileId: ProfileIdSchema })
+    .strict(),
+  z
+    .object({
+      method: z.literal("renameProfile"),
+      profileId: ProfileIdSchema,
+      name: z.string().trim().min(1).max(120),
+    })
+    .strict(),
   z.object({ method: z.literal("settings") }).strict(),
   z
     .object({
@@ -47,6 +67,7 @@ export const CommandSchema = z.discriminatedUnion("method", [
         "retryTrack",
       ]),
       jobId: z.string().uuid().optional(),
+      profileId: ProfileIdSchema.optional(),
     })
     .strict(),
   z
@@ -80,6 +101,7 @@ export const CommandSchema = z.discriminatedUnion("method", [
   z
     .object({
       method: z.literal("saveFact"),
+      profileId: ProfileIdSchema.optional(),
       path: z.string().regex(/^[a-zA-Z][\w.-]{0,120}$/),
       value: ValueSchema,
     })
@@ -87,6 +109,7 @@ export const CommandSchema = z.discriminatedUnion("method", [
   z
     .object({
       method: z.literal("record"),
+      profileId: ProfileIdSchema.optional(),
       kind: RecordKindSchema,
       id: z.string().regex(/^[a-zA-Z0-9_-]{1,60}$/),
     })
@@ -138,6 +161,9 @@ export interface Snapshot {
   dataDir: string;
 }
 export interface ProfileView {
+  selected: ProfileVersion;
+  versions: ProfileVersion[];
+  activeId: string;
   profile: Profile;
   fields: { path: string; label: string; section: string }[];
   version?: {

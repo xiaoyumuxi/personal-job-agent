@@ -59,6 +59,7 @@ export interface Question {
   canModel?: boolean;
 }
 export interface Interaction {
+  profile?(value: { id: string; name: string; revision: number }): void;
   request(q: Question): Promise<Answer>;
   step(name: string): void;
   checkpoint(): Promise<boolean>;

@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { ProfileSchema, type Profile, type Fact, type Value } from "./types.js";
 import type { Vault } from "./vault.js";
 import type { Store } from "./db.js";
+import { profileSelection, saveVersionProfile } from "./profile-library.js";
 import { recognizePDFPages } from "./ocr.js";
 import { orderedPDFText } from "./pdf-text.js";
 import { parseResumeText } from "./resume-parser.js";
@@ -14,14 +15,16 @@ export interface ProfileImportInfo {
   ocrPages?: number;
 }
 export const blankProfile = (): Profile => ProfileSchema.parse({});
-export async function loadProfile(vault: Vault): Promise<Profile> {
-  const raw = await vault.get("profile");
-  return raw ? ProfileSchema.parse(JSON.parse(raw)) : blankProfile();
+export async function loadProfile(vault: Vault, id?: string): Promise<Profile> {
+  return (await profileSelection(vault, undefined, id)).profile;
 }
-export async function saveProfile(vault: Vault, store: Store, p: Profile) {
-  await vault.set("profile", JSON.stringify(ProfileSchema.parse(p)));
-  if (vault.kind !== "session") store.setMeta("profileRef", "keychain:profile");
-  else store.event(null, "PROFILE_SESSION_ONLY");
+export async function saveProfile(
+  vault: Vault,
+  store: Store,
+  p: Profile,
+  id?: string,
+) {
+  return saveVersionProfile(vault, store, p, id);
 }
 export async function importProfile(
   file: string | undefined,

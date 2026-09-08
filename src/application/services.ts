@@ -1,3 +1,10 @@
+import { createHash } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
+import {
+  profileSelection,
+  importedVersion,
+  importedProfileId,
+} from "../profile-library.js";
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import {
@@ -46,12 +53,28 @@ export async function importProfileFile(
   dir: string,
   file?: string,
   text?: string,
+  mode: "new" | "update" = "new",
 ) {
+  if (file && (await stat(file)).size > 20 * 1024 * 1024)
+    throw new Error("简历超过 20 MB");
+  const fingerprint = createHash("sha256")
+    .update(file ? await readFile(file) : (text ?? ""))
+    .digest("hex");
+  const targetId =
+    mode === "update"
+      ? (await profileSelection(vault, store)).selected.id
+      : await importedProfileId(vault, fingerprint);
   let extraction: ProfileImportInfo | undefined;
   const draft = await importProfile(file, text, dir, (info) => {
       extraction = info;
     }),
-    old = await loadProfile(vault);
+    old = targetId
+      ? await loadProfile(vault, targetId)
+      : ({
+          version: 1 as const,
+          facts: {},
+          records: { education: [], experience: [], project: [] },
+        } as Profile);
   for (const [k, f] of Object.entries(draft.facts)) {
     const prior = old.facts[k];
     if (prior?.state !== "confirmed") continue;
@@ -89,16 +112,19 @@ export async function importProfileFile(
     },
     resume: draft.resume ?? old.resume,
   };
-  await saveProfile(vault, store, merged);
-  store.setMeta("profileVersion", {
-    at: new Date().toISOString(),
-    file: file ? basename(file) : "粘贴文本",
-    extraction,
-    revision:
-      (store.getMeta<{ revision: number }>("profileVersion")?.revision ?? 0) +
-      1,
-  });
-  return loadProfile(vault);
+  return (
+    await importedVersion(
+      vault,
+      store,
+      merged,
+      {
+        file: file ? basename(file) : "粘贴文本",
+        fingerprint,
+        extraction,
+      },
+      targetId,
+    )
+  ).profile;
 }
 export async function resolveFeishuCLI(
   store: Store,

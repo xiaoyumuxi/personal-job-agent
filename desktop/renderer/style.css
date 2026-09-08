@@ -772,3 +772,16 @@ tr.current td:first-child {
     scroll-behavior: auto !important;
   }
 }
+
+.profile-picker {
+  width: min(580px, calc(100vw - 48px));
+  border: 1px solid var(--line, #dce3ed);
+  border-radius: 16px;
+  padding: 28px;
+  color: var(--ink, #253249);
+  background: #fff;
+  box-shadow: 0 18px 60px #182b4630;
+}
+.profile-picker::backdrop { background: #182b4655; }
+.profile-picker select { display: block; width: 100%; margin: 10px 0; }
+.profile-picker .actions { justify-content: flex-end; }

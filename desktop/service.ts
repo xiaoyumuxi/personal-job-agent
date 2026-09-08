@@ -1,3 +1,8 @@
+import {
+  profileSelection,
+  switchProfile,
+  renameProfile,
+} from "../src/profile-library.js";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, join, extname } from "node:path";
@@ -190,8 +195,9 @@ export class DesktopService {
       this.notify();
     }
   }
-  async profile(): Promise<ProfileView> {
-    const profile = await loadProfile(this.vault),
+  async profile(profileId?: string): Promise<ProfileView> {
+    const selection = await profileSelection(this.vault, this.store, profileId);
+    const profile = selection.profile,
       rules = mappings(readConfig(this.dir), this.dir);
     const fields = rules
       .filter((r) => r.path !== "resume")
@@ -217,7 +223,11 @@ export class DesktopService {
               ? "求职偏好"
               : "其他资料",
         });
-    return { profile, fields, version: this.store.getMeta("profileVersion") };
+    return {
+      ...selection,
+      fields,
+      version: selection.selected.file ? selection.selected : undefined,
+    };
   }
   private discoverFeishuCLI(refresh = false): Promise<FeishuCLICheck> {
     // Multiple windows/refreshes share one bounded worker operation and one lock.
@@ -247,7 +257,14 @@ export class DesktopService {
   async handle(raw: unknown): Promise<unknown> {
     const c = CommandSchema.parse(raw);
     if (c.method === "snapshot") return this.snapshot();
-    if (c.method === "profile") return this.profile();
+    if (c.method === "profile") return this.profile(c.profileId);
+    if (c.method === "profileVersions") {
+      const { selected, versions, activeId } = await profileSelection(
+        this.vault,
+        this.store,
+      );
+      return { selected, versions, activeId };
+    }
     if (c.method === "history") {
       const a = this.store.applications().find((a) => a.jobId === c.jobId);
       return a
@@ -333,23 +350,31 @@ export class DesktopService {
         });
         return true;
       }
+      if (c.method === "switchProfile") {
+        await switchProfile(this.vault, this.store, c.profileId);
+        return this.profile();
+      }
+      if (c.method === "renameProfile") {
+        await renameProfile(this.vault, this.store, c.profileId, c.name);
+        return this.profile(c.profileId);
+      }
       if (c.method === "saveFact") {
-        const p = await loadProfile(this.vault);
+        const p = await loadProfile(this.vault, c.profileId);
         confirmFact(p, c.path, c.value);
-        await saveProfile(this.vault, this.store, p);
-        const checked = await loadProfile(this.vault);
+        await saveProfile(this.vault, this.store, p, c.profileId);
+        const checked = await loadProfile(this.vault, c.profileId);
         if (
           JSON.stringify(checked.facts[c.path]) !==
           JSON.stringify(p.facts[c.path])
         )
           throw new Error("保存后回读不一致");
-        return this.profile();
+        return this.profile(c.profileId);
       }
       if (c.method === "record") {
-        const p = await loadProfile(this.vault);
+        const p = await loadProfile(this.vault, c.profileId);
         if (!p.records[c.kind].includes(c.id)) p.records[c.kind].push(c.id);
-        await saveProfile(this.vault, this.store, p);
-        return this.profile();
+        await saveProfile(this.vault, this.store, p, c.profileId);
+        return this.profile(c.profileId);
       }
       if (c.method === "application") {
         const a = this.store.app(c.jobId);
@@ -472,6 +497,8 @@ export class DesktopService {
       !row
     )
       throw new Error("请先选择岗位");
+    if (c.profileId && c.operation !== "apply")
+      throw new Error("仅辅助填写可指定简历版本");
     if (c.operation === "apply" && !row?.permissions.apply)
       throw new Error("当前状态禁止重复填写；请先核查官网结果");
     if (c.operation === "track" && row && !row.permissions.track)
@@ -499,7 +526,15 @@ export class DesktopService {
       sites = loadSites(config, this.dir),
       checkpoint = () => r.checkpoint();
     if (c.operation === "apply") {
-      await applyJob(c.jobId!, this.store, config, this.dir, this.vault, r);
+      await applyJob(
+        c.jobId!,
+        this.store,
+        config,
+        this.dir,
+        this.vault,
+        r,
+        c.profileId,
+      );
       return;
     }
     if (["open", "login"].includes(c.operation)) {

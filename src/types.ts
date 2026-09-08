@@ -64,6 +64,9 @@ export type RunStatus =
   | "RETRY_PENDING"
   | "NOT_CONFIGURED";
 export interface Application {
+  profileId?: string;
+  profileRevision?: number;
+  profileName?: string;
   id: string;
   jobId: string;
   state: "DRAFT" | "FILLING" | "REVIEW" | "SUBMITTED" | "UNKNOWN_RESULT";

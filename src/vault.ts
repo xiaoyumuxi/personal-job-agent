@@ -6,6 +6,7 @@ import { ROOT } from "./config.js";
 import { AgentError } from "./errors.js";
 export interface Vault {
   kind?: "keychain" | "session";
+  delete?(key: string): Promise<void>;
   get(key: string): Promise<string | undefined>;
   set(key: string, value: string): Promise<void>;
 }
@@ -14,6 +15,9 @@ export class MemoryVault implements Vault {
   private data = new Map<string, string>();
   async get(k: string) {
     return this.data.get(k);
+  }
+  async delete(k: string) {
+    this.data.delete(k);
   }
   async set(k: string, v: string) {
     this.data.set(k, v);

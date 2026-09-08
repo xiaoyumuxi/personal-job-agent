@@ -54,7 +54,7 @@ export function Drawer({
     setRecordLabelsError(false);
     if (q?.issues?.some((issue) => issue.records?.length)) {
       void api
-        .invoke({ method: "profile" })
+        .invoke({ method: "profile", profileId: run?.profile?.id })
         .then((result) => {
           if (!current) return;
           const { profile } = result as ProfileView;
@@ -115,6 +115,13 @@ export function Drawer({
         </button>
       </header>
       <div className="drawer-body">
+        {row?.application?.profileId && (
+          <p className="hint">
+            该申请已选简历：
+            {row.application.profileName || row.application.profileId} · 修订{" "}
+            {row.application.profileRevision}
+          </p>
+        )}
         {run && (
           <section>
             <div className="section-title">
@@ -122,6 +129,11 @@ export function Drawer({
               <Badge value={run.state} />
             </div>
             <p>{run.step}</p>
+            {run.profile && (
+              <p className="hint">
+                本次简历：{run.profile.name} · 修订 {run.profile.revision}
+              </p>
+            )}
             {run.error && <div className="callout error">{run.error}</div>}
             {active && (
               <div className="actions">
@@ -628,7 +640,7 @@ function IssueForm({
               onChange={(e) => setScope(e.target.value as typeof scope)}
             >
               <option value="application">仅本次申请使用</option>
-              <option value="general">保存为通用资料</option>
+              <option value="general">保存到本次所选简历</option>
             </select>
           </label>
           <button className="primary" disabled={disabled || !path}>

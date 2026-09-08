@@ -1,3 +1,4 @@
+import { profileSelection } from "./profile-library.js";
 import {
   ProfileSchema,
   isRecordKind,
@@ -30,6 +31,7 @@ export async function applyJob(
   dir: string,
   vault: Vault,
   io: Interaction = terminalInteraction,
+  profileId?: string,
 ) {
   let job = store.jobs().find((j) => j.id === id);
   if (!job) {
@@ -61,22 +63,43 @@ export async function applyJob(
   const site = findSite(loadSites(config, dir), job.url);
   if (site && !site.capabilities.fill)
     throw new Error("该站点配置没有声明填表能力");
-  const profile = await loadProfile(vault);
+  const chosen = await profileSelection(
+    vault,
+    store,
+    profileId ?? existing?.profileId,
+  );
+  const profile = chosen.profile;
+  if (
+    existing &&
+    ["FILLING", "REVIEW"].includes(existing.state) &&
+    existing.profileId &&
+    (existing.profileId !== chosen.selected.id ||
+      existing.profileRevision !== chosen.selected.revision)
+  )
+    throw new Error(
+      "该申请使用的简历版本已变更，请先在官网核对并记录未提交，再选择版本重新观察填写",
+    );
+  io.profile?.(chosen.selected);
   const available = Object.keys(profile.facts).filter(
     (k) => profile.facts[k]!.state === "confirmed",
   );
   if (
     !(await confirm(
-      `目标：${job.company} / ${job.title}。允许向该网站填写以下已确认资料：${available.join(", ") || "暂无"}；${profile.resume ? "包含简历附件上传" : "没有附件"}。填写和上传可能立即发送数据，最终提交必须本人在官网完成。${job.dedupWarning || ""}`,
+      `目标：${job.company} / ${job.title}。简历版本：${chosen.selected.name}（修订 ${chosen.selected.revision}），附件：${chosen.selected.file || (profile.resume ? "原有 PDF" : "无")}。允许向该网站填写以下已确认资料：${available.join(", ") || "暂无"}；${profile.resume ? "包含简历附件上传" : "没有附件"}。填写和上传可能立即发送数据，最终提交必须本人在官网完成。${job.dedupWarning || ""}`,
     ))
   )
     return;
   const a = store.ensureApplication(job.id);
+  a.profileId = chosen.selected.id;
+  a.profileRevision = chosen.selected.revision;
+  a.profileName = chosen.selected.name;
   a.state = "FILLING";
   store.save(a, "DISCLOSURE_APPROVED", {
     origin: new URL(job.url).origin,
     fields: available,
     attachment: !!profile.resume,
+    profileId: a.profileId,
+    profileRevision: a.profileRevision,
   });
   let context: Awaited<ReturnType<typeof openChrome>> | undefined;
   try {
@@ -117,7 +140,11 @@ export async function applyJob(
       if (f.state === "confirmed")
         f.discloseTo = [...new Set([...f.discloseTo, origin])];
     let overrides: Record<string, Fact> = {};
-    const saved = await vault.get("application:" + a.id);
+    const overridesKey =
+      "application:" +
+      a.id +
+      (a.profileId === "legacy" ? "" : ":" + a.profileId);
+    const saved = await vault.get(overridesKey);
     if (saved) overrides = ProfileSchema.parse(JSON.parse(saved)).facts;
     const engine = new FillEngine(
       page,
@@ -243,11 +270,14 @@ export async function applyJob(
         if (action.scope === "general") {
           confirmFact(profile, path, value);
           profile.facts[path]!.discloseTo = [origin];
-          await saveProfile(vault, store, profile);
+          const updated = await saveProfile(vault, store, profile, a.profileId);
+          a.profileRevision = updated.revision;
+          store.save(a, "PROFILE_ANSWER_SAVED");
+          io.profile?.(updated);
         } else {
           overrides[path] = validation.facts[path]!;
           await vault.set(
-            "application:" + a.id,
+            overridesKey,
             JSON.stringify({ version: 1, facts: overrides }),
           );
         }

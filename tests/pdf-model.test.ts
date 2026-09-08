@@ -68,7 +68,14 @@ it("导入部分识别结果不会清空已确认资料，版本只保存非敏�
   vi.mocked(recognizePDFPages).mockResolvedValue([
     { page: 1, text: "Email: ocr@example.invalid Phone: 13812345678" },
   ]);
-  const imported = await importProfileFile(s.store, vault, s.dir, file);
+  const imported = await importProfileFile(
+    s.store,
+    vault,
+    s.dir,
+    file,
+    undefined,
+    "update",
+  );
   expect(imported.facts["basic.name"]?.value).toBe("已确认姓名");
   expect(imported.facts["basic.name"]?.state).toBe("confirmed");
   const version = s.store.getMeta<{ extraction: unknown }>("profileVersion");

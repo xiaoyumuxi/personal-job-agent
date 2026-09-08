@@ -66,3 +66,9 @@
 - 本地复杂表单 fixture，以及业务、浏览器和同步回归测试。
 
 实现提交：[7f5b58c](https://github.com/xiaoyumuxi/personal-job-agent/commit/7f5b58cf695ad4fb1ea610292c63a7c2ab742c7c)。验证范围见 [基础验收记录](docs/verification.md)。
+
+## 多版本简历（2026-09-08）
+
+- 不同 PDF 独立保存资料、经历和确认状态，支持命名、切换与相同内容的重复导入。
+- 每次岗位填写显式选择简历，资料和附件固定到任务，答案按所选版本保存。
+- 保留旧 Keychain 资料备份，新增 CLI 版本管理与修订变更后的恢复保护。

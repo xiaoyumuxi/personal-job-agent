@@ -266,3 +266,5 @@ docs/              使用说明与验收记录
 本项目采用 [ISC License](LICENSE)，与 `package.json` 中的声明一致。
 
 Copyright (c) 2026 xiaoyumuxi。第三方依赖各自遵循其许可证。
+
+多份简历可分别保存和命名，在每个岗位启动填写前选择对应版本；见[多版本简历说明](docs/resume-versions.md)。

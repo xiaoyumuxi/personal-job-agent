@@ -184,10 +184,20 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await stopClient();
   server.close();
+  const profileCatalog = JSON.parse(
+    (await vault?.get("profile-catalog")) || "null",
+  );
+  for (const entry of profileCatalog?.entries ?? [])
+    await vault?.delete(entry.key);
+  await vault?.delete("profile-catalog");
   await vault?.delete("profile");
   const store = new Store(home);
   for (const a of store.applications())
-    await vault?.delete("application:" + a.id);
+    await vault?.delete(
+      "application:" +
+        a.id +
+        (a.profileId && a.profileId !== "legacy" ? ":" + a.profileId : ""),
+    );
   store.close();
   rmSync(home, { recursive: true, force: true });
 });
@@ -201,6 +211,9 @@ test("existing SQLite → one task → login yellow → answer → pause/resume 
     ) as Promise<Snapshot>;
   expect((await read()).rows).toHaveLength(1);
   await page.getByRole("button", { name: "辅助填写", exact: true }).click();
+  await page
+    .getByRole("button", { name: "使用此版本并继续", exact: true })
+    .click();
   await expect(
     page.getByRole("button", { name: "我已核对，继续", exact: true }),
   ).toBeVisible();
@@ -516,7 +529,8 @@ async function verifyPDFImport(page: Page, variant: string) {
   ).toContain("pdf");
   const imported = await read();
   expect(imported.profile.facts["basic.email"]?.state).toBe("pending");
-  expect(imported.version?.revision).toBe((before.version?.revision ?? 0) + 1);
+  expect(imported.selected.id).not.toBe(before.selected.id);
+  expect(imported.version?.revision).toBe(1);
   expect(imported.version?.file).toBe(`${variant} 简历.pdf`);
   expect(readFileSync(imported.profile.resume!)).toEqual(readFileSync(file));
 
@@ -546,7 +560,8 @@ async function verifyPDFImport(page: Page, variant: string) {
   await expect(page.locator('[id="basic.email"]')).toHaveValue(email);
   const recognized = await read();
   expect(recognized.version?.extraction?.ocrPages).toBe(1);
-  expect(recognized.version?.revision).toBe(imported.version!.revision + 1);
+  expect(recognized.selected.id).not.toBe(imported.selected.id);
+  expect(recognized.version?.revision).toBe(1);
   const name = recognized.profile.facts["basic.name"];
   if (name?.state === "conflict") expect(name.candidates).toContain("测试本人");
   else expect(name?.value).toBe("测试本人");
@@ -641,6 +656,9 @@ test("structured resume records can be edited, confirmed and reimported without 
     .getByRole("button", { name: "客户端导入测试 客户端导入岗位" })
     .locator("xpath=ancestor::tr");
   await row.getByRole("button", { name: "辅助填写", exact: true }).click();
+  await page
+    .getByRole("button", { name: "使用此版本并继续", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "我已核对，继续", exact: true })
     .click();

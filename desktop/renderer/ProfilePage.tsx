@@ -24,10 +24,12 @@ export function ProfilePage({
     [customValue, setCustomValue] = useState(""),
     [kind, setKind] = useState<RecordKind>("education"),
     [recordId, setRecordId] = useState(""),
+    [versionName, setVersionName] = useState(""),
     [importing, setImporting] = useState(false);
   const load = async () => {
     const v = (await api.invoke({ method: "profile" })) as ProfileView;
     setView(v);
+    setVersionName(v.selected.name);
   };
   useEffect(() => {
     void perform(load);
@@ -39,7 +41,7 @@ export function ProfilePage({
         <div>
           <div className="eyebrow">本人确认的资料</div>
           <h1>我的资料</h1>
-          <p>解析只产生候选值。确认之后，填写流程才会使用。</p>
+          <p>每份简历独立保存资料与确认状态。选择适合岗位的版本后再填写。</p>
         </div>
         <button
           className="primary"
@@ -59,15 +61,72 @@ export function ProfilePage({
           {importing ? "正在导入，请稍候…" : "导入简历 / 资料"}
         </button>
       </header>
+      {view && (
+        <section className="panel" aria-label="简历版本管理">
+          <h2>简历版本（{view.versions.length}）</h2>
+          <div className="inline-form">
+            <label>
+              当前编辑 / 默认简历
+              <select
+                aria-label="当前简历版本"
+                value={view.selected.id}
+                disabled={busy || importing}
+                onChange={(e) =>
+                  perform(async () => {
+                    await api.invoke({
+                      method: "switchProfile",
+                      profileId: e.target.value,
+                    });
+                    await load();
+                  }, "已切换简历版本，并重新读取资料")
+                }
+              >
+                {view.versions.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <input
+              aria-label="简历版本名称"
+              value={versionName}
+              maxLength={120}
+              onChange={(e) => setVersionName(e.target.value)}
+              placeholder="例如：后端开发版、Agent 开发版"
+            />
+            <button
+              disabled={busy || importing || !versionName.trim()}
+              onClick={() =>
+                perform(async () => {
+                  await api.invoke({
+                    method: "renameProfile",
+                    profileId: view.selected.id,
+                    name: versionName,
+                  });
+                  await load();
+                }, "版本名称已保存")
+              }
+            >
+              保存版本名称
+            </button>
+          </div>
+          <p className="hint">
+            导入不同文件会创建独立版本；相同内容重复导入会更新对应版本，保留已确认资料。编辑只影响当前版本。填写任务启动后不能切换资料。
+          </p>
+        </section>
+      )}
       <div className="summary-line">
         <div>
           <small>当前简历附件</small>
           <strong>
-            {view?.profile.resume?.split("/").at(-1) || "未导入 PDF 附件"}
+            {view?.profile.resume
+              ? view.selected.file || "原有 PDF 附件"
+              : "未导入 PDF 附件"}
           </strong>
         </div>
         <div>
-          <small>最近导入版本</small>
+          <small>当前版本修订</small>
           <strong>
             {view?.version
               ? `v${view.version.revision} · ${view.version.file}`
@@ -103,15 +162,20 @@ export function ProfilePage({
               .filter((f) => f.section === group)
               .map((f) => (
                 <FactEditor
-                  key={f.path + JSON.stringify(view!.profile.facts[f.path])}
+                  key={
+                    view!.selected.id +
+                    f.path +
+                    JSON.stringify(view!.profile.facts[f.path])
+                  }
                   path={f.path}
                   text={f.label}
                   fact={view!.profile.facts[f.path]}
-                  disabled={busy}
+                  disabled={busy || importing}
                   save={(value) =>
                     perform(async () => {
                       await api.invoke({
                         method: "saveFact",
+                        profileId: view!.selected.id,
                         path: f.path,
                         value,
                       });
@@ -145,7 +209,12 @@ export function ProfilePage({
             disabled={busy || !recordId}
             onClick={() =>
               perform(async () => {
-                await api.invoke({ method: "record", kind, id: recordId });
+                await api.invoke({
+                  method: "record",
+                  profileId: view!.selected.id,
+                  kind,
+                  id: recordId,
+                });
                 await load();
                 setRecordId("");
               })
@@ -177,6 +246,7 @@ export function ProfilePage({
               perform(async () => {
                 await api.invoke({
                   method: "saveFact",
+                  profileId: view!.selected.id,
                   path: customPath,
                   value: customValue,
                 });

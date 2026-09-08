@@ -21,6 +21,7 @@ export type RunState =
   | "FAILED"
   | "INTERRUPTED";
 export interface RunRecord {
+  profile?: { id: string; name: string; revision: number };
   runId: string;
   jobId?: string;
   operation: string;
@@ -96,6 +97,14 @@ export class Runtime implements Interaction {
       kind,
       step: cleanText(this.record.step),
     });
+  }
+  profile(value: { id: string; name: string; revision: number }) {
+    this.record.profile = {
+      id: value.id,
+      name: value.name,
+      revision: value.revision,
+    };
+    this.emit("PROFILE_SELECTED");
   }
   step(name: string) {
     this.record.step = cleanText(name);
