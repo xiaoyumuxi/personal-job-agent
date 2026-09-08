@@ -1,5 +1,5 @@
 import { chromium, type BrowserContext, type Page } from "playwright";
-import { profileDir, privateDir, safeUrl } from "../config.js";
+import { profileDir, privateDir, safeUrl, readConfig } from "../config.js";
 import type { Site } from "../types.js";
 import { AgentError } from "../errors.js";
 export async function openChrome(
@@ -10,6 +10,7 @@ export async function openChrome(
   privateDir(p);
   return chromium.launchPersistentContext(p, {
     channel: "chrome",
+    executablePath: readConfig(dir).browser.executablePath,
     headless,
     acceptDownloads: false,
     // Playwright defaults otherwise disable native macOS credential encryption.

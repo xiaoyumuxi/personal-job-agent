@@ -31,6 +31,12 @@ export class KeychainVault implements Vault {
     if (process.platform !== "darwin")
       throw new AgentError("PERMANENT", "KEYCHAIN_MACOS_REQUIRED");
     const bin = join(this.dir, "keychain-helper");
+    if (
+      !existsSync(bin) &&
+      process.env.JOBAGENT_KEYCHAIN_HELPER &&
+      existsSync(process.env.JOBAGENT_KEYCHAIN_HELPER)
+    )
+      return process.env.JOBAGENT_KEYCHAIN_HELPER;
     if (!existsSync(bin)) {
       const result = await runFile(
         "/usr/bin/swiftc",

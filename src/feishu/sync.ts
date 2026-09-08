@@ -11,6 +11,7 @@ export async function sync(
   dir: string,
   remote: FeishuTransport = new FeishuCLI(config.feishu),
   wait = delay,
+  checkpoint: () => Promise<unknown> = async () => {},
 ) {
   const pending = store
     .pending()
@@ -43,6 +44,7 @@ export async function sync(
   let checked = false;
   for (const o of pending) {
     for (;;) {
+      await checkpoint();
       const a = store.app(o.appId);
       try {
         if (!checked) {

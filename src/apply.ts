@@ -3,7 +3,12 @@ import { type Config, loadSites, findSite, mappings } from "./config.js";
 import { Store, now } from "./db.js";
 import { loadProfile, saveProfile, confirmFact } from "./profile.js";
 import type { Vault } from "./vault.js";
-import { ask, yes } from "./prompt.js";
+import {
+  terminalInteraction,
+  RunStopped,
+  type Interaction,
+  type Question,
+} from "./interaction.js";
 import {
   openChrome,
   navigate,
@@ -19,6 +24,7 @@ export async function applyJob(
   config: Config,
   dir: string,
   vault: Vault,
+  io: Interaction = terminalInteraction,
 ) {
   let job = store.jobs().find((j) => j.id === id);
   if (!job) {
@@ -31,11 +37,19 @@ export async function applyJob(
     throw new Error(
       "已投递或结果不确定，禁止重复执行 apply；请先查询官网/人工核对",
     );
+  const confirm = async (message: string) => {
+    const answer = await io.request({
+      kind: "confirm",
+      message,
+      site: job!.url,
+    });
+    return answer.action === "confirm" && answer.accepted;
+  };
   if (
     existing &&
     ["FILLING", "REVIEW"].includes(existing.state) &&
-    !(await yes(
-      "上次会话未结束；已在官网核对该岗位尚未最终提交，允许重新观察辅助填写？",
+    !(await confirm(
+      "上次会话未结束；请先在官网核对该岗位尚未最终提交，再恢复辅助填写",
     ))
   )
     return;
@@ -46,12 +60,10 @@ export async function applyJob(
   const available = Object.keys(profile.facts).filter(
     (k) => profile.facts[k]!.state === "confirmed",
   );
-  console.log(
-    `目标：${job.company} / ${job.title}\n网站：${job.url}\n候选资料字段：${available.join(", ") || "尚无已确认资料"}\n附件：${profile.resume ? "已导入简历，将可能上传至上述网站" : "无"}\n填写/上传本身可能发送数据。声明和最终提交由本人完成。`,
-  );
-  if (job.dedupWarning) console.log(job.dedupWarning);
   if (
-    !(await yes("确认选择此岗位，并允许向此网站填写上述已确认资料及上传附件？"))
+    !(await confirm(
+      `目标：${job.company} / ${job.title}。允许向该网站填写以下已确认资料：${available.join(", ") || "暂无"}；${profile.resume ? "包含简历附件上传" : "没有附件"}。填写和上传可能立即发送数据，最终提交必须本人在官网完成。${job.dedupWarning || ""}`,
+    ))
   )
     return;
   const a = store.ensureApplication(job.id);
@@ -61,31 +73,34 @@ export async function applyJob(
     fields: available,
     attachment: !!profile.resume,
   });
-  const context = await openChrome(dir);
-  const page = await context.newPage();
+  let context: Awaited<ReturnType<typeof openChrome>> | undefined;
   try {
+    await io.checkpoint();
+    io.step("打开专用 Chrome");
+    context = await openChrome(dir);
+    const page = await context.newPage();
+    io.browser(page);
     if (site?.login) {
       a.authStatus = await verifyAtApplications(page, site);
-      if (a.authStatus !== "VALID") {
-        console.log(`登录检测：${a.authStatus}。请在专用 Chrome 正常登录。`);
-        await ask("完成后按回车重新检测（q 退出）").then((s) => {
-          if (s === "q") throw new Error("用户暂停登录");
+      while (a.authStatus !== "VALID") {
+        a.nextAction = "请在专用 Chrome 登录，然后重新检查";
+        store.save(a, "LOGIN_REQUIRED");
+        await io.request({
+          kind: "login",
+          site: site.login.url,
+          message: `官网登录${a.authStatus === "UNKNOWN" ? "尚未验证（检查账户和站点规则）" : "已失效"}。完成后由后端重新访问申请页验证。`,
         });
+        await io.checkpoint();
         a.authStatus = await verifyAtApplications(page, site);
-        if (a.authStatus !== "VALID") {
-          a.nextAction = "登录状态尚未验证，请核对登录及站点配置";
-          store.save(a, "LOGIN_NOT_VERIFIED");
-          return;
-        }
       }
+      store.save(a, "LOGIN_VERIFIED");
     } else {
       a.authStatus = "UNKNOWN";
       await navigate(page, job.url);
-      console.log(
-        "没有该网站的登录验证规则，状态保留 UNKNOWN。请本人在浏览器检查登录和表单。",
-      );
       if (
-        !(await yes("确认当前是本人可访问的申请表单，并仅在本次会话辅助填写？"))
+        !(await confirm(
+          "该网站没有登录验证规则，状态保留未验证。请在浏览器核对当前是本人可访问的申请表单，仅本次会话辅助填写。",
+        ))
       ) {
         store.save(a, "SESSION_UNKNOWN");
         return;
@@ -109,13 +124,16 @@ export async function applyJob(
       overrides,
       config.maxActions,
       config.maxSteps,
+      () => io.checkpoint(),
     );
     let manualRounds = 0;
     for (;;) {
       if (++manualRounds > config.maxActions) {
-        console.log("达到本次交互上限，保存后退出");
+        io.step("达到本次交互上限，保存后退出");
         break;
       }
+      if (await io.checkpoint()) await engine.adoptManual();
+      io.step("观察表单并填写已确认资料");
       const initial = await engine.observation();
       for (const f of initial.fields) {
         const cached = !matchField(f, engine.rules)
@@ -132,15 +150,9 @@ export async function applyJob(
         }
       }
       const result = await engine.pass();
-      console.log(
-        `步骤 ${result.ob.step || "未识别"}；本轮填写 ${result.filled} 项；覆盖 ${result.ob.coverage}`,
+      io.step(
+        `步骤 ${result.ob.step || "未识别"}；已填写 ${result.filled} 项；覆盖 ${result.ob.coverage}`,
       );
-      for (const warning of result.ob.warnings)
-        console.log("覆盖提示：" + warning);
-      for (const [n, issue] of result.issues.entries())
-        console.log(
-          `${n + 1}. ${issue.field?.section ?? ""} / ${issue.field?.label ?? ""}：${issue.reason}${issue.path ? " (" + issue.path + ")" : ""}`,
-        );
       a.state = "REVIEW";
       a.nextAction = "浏览器人工审核；最终提交必须本人点击";
       store.save(a, "FORM_PAUSED", {
@@ -148,13 +160,53 @@ export async function applyJob(
         coverage: result.ob.coverage,
         issueCount: result.issues.length,
       });
-      const action = await ask(
-        "命令：answer 编号 / bind 编号 / map 编号 / model / add 区块 / next / resume / submitted / quit（明确尚未提交）",
-      );
-      const [verb, ...parts] = action.split(" ");
-      const index = Number(parts[0]) - 1;
-      const issue = result.issues[index];
-      if (verb === "quit" || verb === "q") break;
+      const question: Question = {
+        kind: "review",
+        message:
+          "请核对表单；声明与最终提交由本人在官网完成。" +
+          result.ob.warnings.join("；"),
+        site: job.url,
+        step: result.ob.step,
+        paths: [
+          ...new Set([
+            ...Object.keys(profile.facts),
+            ...Object.keys(overrides),
+          ]),
+        ],
+        additions: site?.form?.repeats
+          .filter((r) => r.add)
+          .map((r) => r.section),
+        canNext: !!site?.form?.next.some(
+          (n) => n.from === result.ob.step && n.safe,
+        ),
+        canModel: config.model.enabled && config.model.consent,
+        issues: result.issues.map((i) => ({
+          label: i.field?.label ?? "页面核查",
+          section: i.field?.section ?? "",
+          type: i.field?.type ?? "manual",
+          required: i.field?.required ?? "unknown",
+          options: i.field?.options ?? [],
+          path: i.path,
+          reason: i.reason,
+          canAnswer:
+            !!i.field &&
+            !i.field.sensitive &&
+            (!i.field.record || (!!i.path && !i.path.includes("$"))) &&
+            !["file", "manual"].includes(i.field.type),
+          records:
+            i.field?.repeatKind === "education" ||
+            i.field?.repeatKind === "experience"
+              ? profile.records[i.field.repeatKind]
+              : undefined,
+        })),
+      };
+      const action = await io.request(question);
+      await io.checkpoint();
+      const verb = action.action;
+      const issue = "issue" in action ? result.issues[action.issue] : undefined;
+      if (verb === "quit") break;
+      // A human may have changed any field while the request was visible.
+      if (verb !== "submitted") await engine.adoptManual();
       if (verb === "submitted") {
         // Intent is persisted before inspecting the receipt, including crashes during readback.
         a.state = "UNKNOWN_RESULT";
@@ -173,60 +225,43 @@ export async function applyJob(
         );
         break;
       }
-      if (verb === "answer" && issue?.field) {
-        const path =
-          issue.path ||
-          (await ask("输入资料路径，例如 basic.name 或 custom.availability："));
-        const raw = await ask(
-          "本人确认的答案（支持 JSON 数组 / true / false；不会推断未知值）：",
-          true,
-        );
-        let value: Fact["value"] = raw;
-        try {
-          value = JSON.parse(raw);
-        } catch {}
-        const validated = ProfileSchema.parse({
+      if (action.action === "answer" && issue?.field) {
+        const { path, value } = action;
+        const validation = ProfileSchema.parse({
           facts: {
             [path]: { state: "confirmed", value, discloseTo: [origin] },
           },
-        }).facts[path]!;
-        if (
-          (await ask("保存范围：general 通用 / application 仅此申请")) ===
-          "general"
-        ) {
-          confirmFact(profile, path, validated.value!);
+        });
+        // Reuse core path validation even for application-scoped facts.
+        confirmFact({ ...profile, facts: {} }, path, value);
+        if (action.scope === "general") {
+          confirmFact(profile, path, value);
           profile.facts[path]!.discloseTo = [origin];
           await saveProfile(vault, store, profile);
         } else {
-          overrides[path] = validated;
+          overrides[path] = validation.facts[path]!;
           await vault.set(
             "application:" + a.id,
             JSON.stringify({ version: 1, facts: overrides }),
           );
         }
         engine.approveMapping(issue.field, path);
-      } else if (verb === "bind" && issue?.field?.record) {
+      } else if (action.action === "bind" && issue?.field?.record) {
         const kind = issue.field.repeatKind;
-        if (kind !== "education" && kind !== "experience") {
-          console.log("未知重复区块，请人工填写或补充站点 repeats 配置");
-          continue;
-        }
-        console.log("可绑定资料记录：" + profile.records[kind].join(", "));
-        const record = await ask(
-          "输入具体记录 ID（在浏览器核对该区块内容，不按显示顺序自动绑定）：",
-        );
-        if (!profile.records[kind].includes(record))
+        if (
+          (kind !== "education" && kind !== "experience") ||
+          !profile.records[kind].includes(action.record)
+        )
           throw new Error("资料记录 ID 不存在");
-        engine.bind(issue.field.record, record);
-      } else if (verb === "map" && issue?.field) {
-        const path = await ask("明确指定资料路径：");
-        if (!profile.facts[path] && !overrides[path]) {
-          console.log("资料路径不存在，请先 answer");
-          continue;
-        }
-        engine.approveMapping(issue.field, path);
-        if (await yes("已核对区块和字段含义，保存此站点结构下的语义映射？"))
-          store.cache(cacheKey(site, page.url(), result.ob, issue.field), path);
+        engine.bind(issue.field.record, action.record);
+      } else if (action.action === "map" && issue?.field) {
+        if (!profile.facts[action.path] && !overrides[action.path])
+          throw new Error("资料路径不存在");
+        engine.approveMapping(issue.field, action.path);
+        store.cache(
+          cacheKey(site, page.url(), result.ob, issue.field),
+          action.path,
+        );
       } else if (verb === "model") {
         const unknown = result.issues.flatMap((i) =>
           i.field ? [i.field] : [],
@@ -239,13 +274,11 @@ export async function applyJob(
           vault,
         );
         if (!suggestions.length)
-          console.log(
-            "模型未启用、未授权、无 Key 或没有可验证建议；请使用 map / answer",
-          );
+          io.step("模型未配置或没有可验证建议，请手工指定字段");
         for (const suggestion of suggestions) {
           const f = unknown.find((f) => f.uid === suggestion.id)!;
           if (
-            await yes(
+            await confirm(
               `${f.section}/${f.label} → ${suggestion.path}，确认此语义？`,
             )
           ) {
@@ -260,27 +293,27 @@ export async function applyJob(
         try {
           await engine.next();
         } catch (e) {
-          console.log((e as Error).message);
+          io.step((e as Error).message);
         }
       } else if (verb === "add") {
         try {
-          await engine.addRecord(parts.join(" "));
+          await engine.addRecord(action.action === "add" ? action.section : "");
         } catch (e) {
-          console.log((e as Error).message);
+          io.step((e as Error).message);
         }
       } else if (verb === "resume") {
         if (site?.login) {
           const auth = await verifySession(page, site);
           a.authStatus = auth;
           if (auth !== "VALID") {
-            console.log("登录状态未验证，停止自动填写");
+            io.step("登录状态未验证，停止自动填写");
             break;
           }
         }
         await engine.adoptManual();
-      } else console.log("未识别命令；没有执行页面动作");
+      } else io.step("没有执行页面动作");
     }
-  } catch {
+  } catch (error) {
     a.state = "UNKNOWN_RESULT";
     a.nextAction =
       "会话意外中断，先核对是否已提交，再用 application --resolve 记录本人核查结果";
@@ -292,7 +325,9 @@ export async function applyJob(
       "APPLY_PAUSED",
       config.notifications,
     );
+    if (io !== terminalInteraction) throw error;
   } finally {
-    await context.close();
+    io.browser(undefined);
+    await context?.close();
   }
 }

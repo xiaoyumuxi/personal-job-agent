@@ -36,15 +36,19 @@ export function dueDates(
   }
   return result.filter((d) => d <= today);
 }
-export function schedulePlan(dir: string, c: Config) {
+export function schedulePlan(
+  dir: string,
+  c: Config,
+  nodePath = process.execPath,
+) {
   const entry = join(ROOT, "dist/src/cli.js");
   if (!existsSync(entry)) throw new Error("请先 npm run build");
-  const args = [process.execPath, entry, "--home", dir, "daily"];
+  const args = [nodePath, entry, "--home", dir, "daily"];
   return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>
 <key>Label</key><string>${LABEL}</string>
 <key>ProgramArguments</key><array>${args.map((a) => `<string>${esc(a)}</string>`).join("")}</array>
 <key>WorkingDirectory</key><string>${esc(ROOT)}</string>
-<key>EnvironmentVariables</key><dict><key>PATH</key><string>${esc(process.env.PATH ?? "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin")}</string></dict>
+<key>EnvironmentVariables</key><dict><key>PATH</key><string>${esc(process.env.PATH ?? "/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin")}</string>${process.env.JOBAGENT_KEYCHAIN_HELPER ? `<key>JOBAGENT_KEYCHAIN_HELPER</key><string>${esc(process.env.JOBAGENT_KEYCHAIN_HELPER)}</string>` : ""}</dict>
 <key>StartCalendarInterval</key><dict><key>Hour</key><integer>${c.schedule.hour}</integer><key>Minute</key><integer>${c.schedule.minute}</integer></dict>
 <key>StartInterval</key><integer>900</integer><key>RunAtLoad</key><true/>
 <key>StandardOutPath</key><string>${esc(join(dir, "logs/daily.log"))}</string>
@@ -55,12 +59,16 @@ export function schedulePlan(dir: string, c: Config) {
 export function schedulePath() {
   return join(homedir(), "Library/LaunchAgents", LABEL + ".plist");
 }
-export async function installSchedule(dir: string, c: Config) {
+export async function installSchedule(
+  dir: string,
+  c: Config,
+  nodePath = process.execPath,
+) {
   if (process.platform !== "darwin") throw new Error("launchd 仅支持 macOS");
   const path = schedulePath();
   if (existsSync(path))
     throw new Error("已有定时配置；请先查看或卸载，避免覆盖");
-  const plist = schedulePlan(dir, c);
+  const plist = schedulePlan(dir, c, nodePath);
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   writePrivate(path, plist);
   const r = await runFile("/bin/launchctl", [

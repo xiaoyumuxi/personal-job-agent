@@ -1,0 +1,58 @@
+# Electron 客户端实际验收记录
+
+验收日期：2026-09-08。平台：macOS 27.0 arm64。本轮在现有仓库上接入界面，没有迁移数据库，没有安装实际 launchd 任务，没有向企业提交申请。
+
+## 已执行结果
+
+| 检查 | 实际结果 |
+| --- | --- |
+| `npm run typecheck` / `npm run build` | 通过，CLI 与 Electron/React 一起类型检查 |
+| `npm test` | **34 / 34 通过**：原 28 项及新增 6 项桌面服务、协议、锁和中断恢复测试 |
+| `npm run test:browser` | **16 / 16 通过**：原 15 项及新增“写入前暂停、恢复保护人工修改”测试 |
+| `JOBAGENT_TEST_PACKAGE=1 npm run test:desktop` | **3 / 3 通过**，最终一轮 19.4 秒 |
+| `npm run desktop:package` | 成功生成本机 arm64 `.app` |
+| `npm audit` | 0 个已报告漏洞 |
+| 原 CLI `--help` / `--version` / `schedule status` | 正常；版本 0.2.0；实际 launchd 状态未安装，plist 不存在 |
+| Electron 自带 Node/SQLite 探针 | Electron 44.2.0、Node 24.20.0、SQLite 3.53.4；`node:sqlite` 可加载 |
+| 签名检查 | 只有工具链 ad-hoc 标记，TeamIdentifier 未设置；没有 Developer ID 签名或公证 |
+
+## 三个客户端验收场景
+
+1. **同一 SQLite → 一次启动 → 登录 → 回答 → 暂停/恢复 → 同步失败 → 重开**
+   - 使用 Node `Store` 先写入明确标注为测试的岗位，Electron 工作进程直接读同一 `state.sqlite`。
+   - 单击辅助填写后运行一次；重复 IPC 启动被后端拒绝。
+   - 实际专用 Chrome 访问本机测试站，登录失效按后端 `attention()` 整行标黄；只点击“已完成登录”而未改变测试站会话时，重新检测仍为登录失效。
+   - 测试站模拟完成登录后，后端重新访问并验证，通过后出现姓名补充表单。
+   - UI 暂停/恢复、更换问题 ID，输入答案后由原填写引擎写到真实 Chrome 页面；测试站收到该输入。
+   - 未配置飞书时，工作台保留 `NOT_CONFIGURED` 与同步错误，任务状态为失败，没有误报成功。
+   - 刷新页面、开关抽屉及重启客户端没有产生新任务，申请 ID、任务事件数量保持一致。
+   - 资料页真实写入临时服务名对应的 macOS Keychain，并回读验证。检查 `localStorage.length === 0`。
+   - Electron 实际窗口偏好：nodeIntegration=false、contextIsolation=true、sandbox=true；渲染层没有 `require`，未出现页面脚本错误。
+
+2. **文件导入 → 重试耗尽 → 未知结果保护 → 窗口/退出生命周期**
+   - 通过客户端导入按钮、原生对话框 API 测试替身与受限 IPC，实际导入临时 CSV，并在原数据库回读新增岗位。
+   - 显式测试 CLI 返回结构化网络错误，经原 `FeishuCLI` 和 `sync` 进行实际有限重试，最终保存 `RETRY_EXHAUSTED`、`FEISHU_TEMPORARY_ERROR`。整行标红，抽屉提示远端可能尚未更新。
+   - 结果未知的申请在后端拒绝辅助填写；界面只允许先记录本人核查结果。
+   - 空闲关闭窗口后保持客户端进程，激活时创建新窗口，记录一致。
+   - 有任务时退出触发原生确认；选择继续使用时任务仍在。测试清理使用取消请求并等待安全结束。
+
+3. **打包后的 .app 与 Finder 类环境**
+   - 直接启动 `JobAgent.app/Contents/MacOS/JobAgent`，输入环境 PATH 限制为 `/usr/bin:/bin`，使用显式临时 `JOBAGENT_HOME`。
+   - `app.isPackaged === true`；SQLite 读取原数据，字段映射资源存在，Keychain 辅助程序实际可访问。
+   - Chrome 可检测；外部测试 CLI 的绝对路径可执行。
+   - 调度预览使用安装包内独立 Node 与 Keychain helper 的绝对路径；没有实际安装调度。
+
+客户端测试的企业、岗位、页面、资料值和飞书错误全部来自显式临时测试环境，没有写入正式数据源冒充真实申请。测试成功时删除对应临时 Keychain 条目。
+
+## 仍未验证
+
+- 真实招聘网站的站点规则、登录、表单和回执；本轮没有向真实企业发送申请。
+- 真实飞书 device-flow 授权与目标表写入/远端颜色；协议参考本机 CLI 1.0.78 与对应官方源码。客户端只对远端实际确认的写入报告成功。
+- 真实模型端点的请求与授权；UI 支持单独发起不含个人资料的连通性测试，但本轮未调用生产模型。
+- 用户实际 launchd 安装与后台执行；原有日期去重回归、CLI 状态查询和安装包调度路径预览已通过。
+- 通过 macOS 图形界面（Launch Services / Finder）正常打开应用的最终人工检查：自动审批要求对运行此未做 Developer ID 签名、可访问本地数据的构建单独确认。目前已通过直接启动安装包及受限 PATH 的自动测试，但不能据此声称 Finder 人工打开已验证。
+- Intel 架构构建、跨机器分发、Developer ID 签名与公证；当前交付仅为本机 arm64 构建。
+
+## 修复后复验
+
+测试期间修复了 Electron 入口顶层 await 导致的就绪死锁，以及恢复任务瞬间输入组件重建导致的输入丢失。最终应用重新构建，34 项单元/服务测试、16 项 Chrome 测试和全部 3 项客户端测试均通过。打包依赖使用实际安装的 Electron 44.2.0、`@electron/packager` 20.3.0，锁文件已更新。

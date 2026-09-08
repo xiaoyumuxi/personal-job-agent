@@ -1,5 +1,11 @@
 # 个人网申助手 MVP
 
+现已接入 macOS Electron 客户端：三页中文界面、任务详情抽屉、登录接管、资料补充和安全暂停，复用下面的 CLI 与同一份本地数据。
+
+- 开发启动：`npm run desktop:dev`
+- 本机构建：`npm run desktop:package` → `release/JobAgent-darwin-<本机架构>/JobAgent.app`
+- [客户端使用说明与安全边界](docs/desktop.md) · [实际验收记录](docs/desktop-verification.md)
+
 一个可运行的单项目 TypeScript CLI：**导入资料 → 本人确认 → 导入岗位 → 专用 Chrome 登录 → 辅助填写 → 本人审核提交 → 查询官网进度 → 同步飞书**。本地使用 SQLite，敏感资料使用 macOS Keychain，浏览器认证由 Chrome 原生保存，调度使用 launchd。
 
 这版已有真实 URL 通用填写入口，以及配置驱动的站点进度读取。**没有预置声称经过验证的真实招聘网站适配器**。仓库中的 `fixture` 仅是复杂表单测试站点；真实网站需要本人提供 URL、正常登录，并为查询配置准确选择器。没有模型 Key、飞书授权或站点配置，也能运行本地导入、确认、状态查看和测试。最终提交始终由本人点击。

@@ -51,6 +51,18 @@ export const ConfigSchema = z.object({
       minute: z.number().int().min(0).max(59).default(0),
     })
     .default({ hour: 9, minute: 0 }),
+  browser: z
+    .object({
+      executablePath: z
+        .string()
+        .default(
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        ),
+    })
+    .default({
+      executablePath:
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    }),
   notifications: z.boolean().default(true),
 });
 export type Config = z.infer<typeof ConfigSchema>;

@@ -7,3 +7,6 @@ test-results/
 .DS_Store
 .env*
 .jobagent-fixture/
+desktop-build/
+.desktop-runtime/
+release/

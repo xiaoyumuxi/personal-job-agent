@@ -212,11 +212,16 @@ export async function track(
   sites: Site[],
   dir: string,
   wait = delay,
+  checkpoint: () => Promise<unknown> = async () => {},
+  jobIds?: string[],
 ) {
   const active = store
     .applications()
     .filter(
-      (a) => !a.paused && ["SUBMITTED", "UNKNOWN_RESULT"].includes(a.state),
+      (a) =>
+        (!jobIds || jobIds.includes(a.jobId)) &&
+        !a.paused &&
+        ["SUBMITTED", "UNKNOWN_RESULT"].includes(a.state),
     );
   const groups = new Map<string, { site: Site; apps: Application[] }>();
   for (const a of active) {
@@ -293,6 +298,7 @@ export async function track(
       )
         continue;
       for (;;) {
+        await checkpoint();
         try {
           const before = blocked;
           const result = await readApplications(page, site);

@@ -335,3 +335,28 @@ test("完整 track 登录失效：一个账户只合并提醒一次，不消耗�
     s.store.db.prepare("SELECT * FROM alerts WHERE active=1").all(),
   ).toHaveLength(1);
 });
+
+test("暂停在写入前生效；恢复重新观察并保护期间的人工输入", async ({ page }) => {
+  let boundaries = 0;
+  const e = new FillEngine(
+    page,
+    sampleProfile(),
+    mappings(s.config, s.dir),
+    site,
+    [origin],
+    s.dir,
+    {},
+    100,
+    15,
+    async () => {
+      boundaries++;
+      if (boundaries === 2) {
+        await page.locator("#name").fill("暂停期间本人修改");
+        return true;
+      }
+      return false;
+    },
+  );
+  await e.pass();
+  expect(await page.locator("#name").inputValue()).toBe("暂停期间本人修改");
+});

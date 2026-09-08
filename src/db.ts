@@ -252,7 +252,9 @@ export class Store {
     return r ? (JSON.parse(String(r.data)) as T) : undefined;
   }
 }
-export function attention(a: Application) {
+export function attention(
+  a: Application,
+): "RETRY_EXHAUSTED" | "AUTH_REQUIRED" | "NORMAL" {
   if ([a.queryStatus, a.syncStatus].includes("RETRY_EXHAUSTED"))
     return "RETRY_EXHAUSTED";
   if (

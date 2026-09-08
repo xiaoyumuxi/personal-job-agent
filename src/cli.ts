@@ -42,13 +42,18 @@ import {
 } from "./schedule.js";
 import { runFile } from "./process.js";
 import type { Profile, Value } from "./types.js";
+import {
+  doctor,
+  importJobsFile,
+  importProfileFile,
+} from "./application/services.js";
 process.umask(0o077);
 const program = new Command()
   .name("jobagent")
   .description(
     "个人网申助手：本地资料、可见 Chrome、飞书官方 CLI、人工最终提交",
   )
-  .version("0.1.0")
+  .version("0.2.0")
   .option("--home <directory>", "本地资料目录")
   .option("--session", "资料仅保存在本次进程内存（不降级为明文）", false);
 interface State {
@@ -108,44 +113,8 @@ program
   .command("doctor")
   .description("检查环境、Keychain 可用性、官方 CLI 和授权；不登录、不写飞书")
   .action(() =>
-    state(async ({ config, dir, vault }) => {
-      const chrome = "/Applications/Google Chrome.app";
-      const checks: Record<string, unknown> = {
-        node: process.version,
-        chrome: existsSync(chrome),
-        home: dir,
-        feishuConfigured:
-          config.feishu.enabled &&
-          !!config.feishu.baseToken &&
-          !!config.feishu.tableId,
-        modelConfigured: config.model.enabled && config.model.consent,
-      };
-      try {
-        await vault.get("doctor-nonexistent");
-        checks.keychain = "可访问（未写入个人资料）";
-      } catch {
-        checks.keychain = "不可访问；运行时明确失败，可用 --session 会话模式";
-      }
-      const client = new FeishuCLI(config.feishu);
-      try {
-        const version = await client.raw(["--version"]);
-        checks.feishuCLI =
-          version.code === 0 ? version.stdout.trim() : "不可用";
-        await client.auth();
-        checks.feishuUserAuth = "VALID";
-      } catch {
-        checks.feishuUserAuth = "AUTH_REQUIRED 或无法验证";
-      }
-      checks.schedule =
-        process.platform === "darwin"
-          ? await scheduleStatus()
-          : { installed: false };
-      checks.sites = loadSites(config, dir).map((s) => ({
-        id: s.id,
-        fill: s.capabilities.fill,
-        track: s.capabilities.track,
-      }));
-      output(checks);
+    state(async ({ store, config, dir, vault }) => {
+      output(await doctor(store, config, dir, vault));
     }),
   );
 program
@@ -164,48 +133,13 @@ profile
   .description("导入文本 PDF、TXT 或 JSON，生成待确认资料")
   .action((file, opts) =>
     state(async ({ store, vault, dir }) => {
-      const draft = await importProfile(
+      const merged = await importProfileFile(
+        store,
+        vault,
+        dir,
         file,
         opts.paste ? await pasted() : undefined,
-        dir,
       );
-      const old = await loadProfile(vault);
-      for (const [k, f] of Object.entries(draft.facts)) {
-        const prior = old.facts[k];
-        if (
-          prior?.state === "confirmed" &&
-          f.value !== undefined &&
-          JSON.stringify(prior.value) !== JSON.stringify(f.value)
-        )
-          draft.facts[k] = {
-            state: "conflict",
-            candidates: [prior.value!, f.value],
-            discloseTo: [],
-          };
-        else if (
-          prior?.state === "confirmed" &&
-          JSON.stringify(prior.value) === JSON.stringify(f.value)
-        )
-          draft.facts[k] = prior;
-      }
-      const merged: Profile = {
-        ...old,
-        ...draft,
-        facts: { ...old.facts, ...draft.facts },
-        records: {
-          education: [
-            ...new Set([...old.records.education, ...draft.records.education]),
-          ],
-          experience: [
-            ...new Set([
-              ...old.records.experience,
-              ...draft.records.experience,
-            ]),
-          ],
-        },
-        resume: draft.resume ?? old.resume,
-      };
-      await saveProfile(vault, store, merged);
       output({
         fields: Object.entries(merged.facts).map(([path, f]) => ({
           path,
@@ -317,22 +251,16 @@ jobs
   .option("--columns <json>", "自定义表头映射 JSON")
   .action((file, opts) =>
     state(async ({ store, config, dir }) => {
-      const grids = await readJobs(
-        file,
-        opts.paste ? await pasted() : undefined,
+      output(
+        await importJobsFile(
+          store,
+          config,
+          dir,
+          file,
+          opts.paste ? await pasted() : undefined,
+          opts.columns ? JSON.parse(opts.columns) : {},
+        ),
       );
-      const sites = loadSites(config, dir);
-      const imports = grids.flatMap((g) =>
-        jobsFromGrid(g, sites, opts.columns ? JSON.parse(opts.columns) : {}),
-      );
-      const result = store.transaction(() =>
-        imports.map((j) => store.addJob(j)),
-      );
-      output({
-        imported: result.filter((r) => !r.duplicate).length,
-        duplicates: result.filter((r) => r.duplicate).length,
-        results: result,
-      });
       console.log("导入不代表投递授权；jobs list 后自行选择 apply <id>");
     }),
   );

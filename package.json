@@ -1,6 +1,6 @@
 {
   "name": "personal-job-agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "macOS 个人网申助手：Chrome 辅助填写、SQLite、飞书 CLI、launchd",
   "scripts": {
     "dev": "tsx src/cli.ts",
@@ -12,7 +12,11 @@
     "fixture": "tsx fixtures/server.ts",
     "check": "npm run typecheck && npm test && npm run test:browser",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"fixtures/*.{ts,html}\" \"*.{json,ts,md}\" \"{docs,examples,sites}/**/*.{md,json}\"",
-    "fixture:seed": "tsx fixtures/seed.ts"
+    "fixture:seed": "tsx fixtures/seed.ts",
+    "desktop:build": "npm run build && node scripts/build-desktop.mjs",
+    "desktop:dev": "npm run desktop:build && electron .",
+    "desktop:package": "npm run desktop:build && node scripts/package-desktop.mjs",
+    "test:desktop": "playwright test --config desktop.playwright.config.ts"
   },
   "keywords": [],
   "author": "",
@@ -24,11 +28,18 @@
     "exceljs": "^4.4.0",
     "pdfjs-dist": "^6.3.289",
     "playwright": "^1.63.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@electron/packager": "^20.3.0",
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.5.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "electron": "^44.2.0",
+    "esbuild": "^0.28.2",
     "prettier": "^3.9.6",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
@@ -45,5 +56,6 @@
     "exceljs": {
       "uuid": "^11.1.1"
     }
-  }
+  },
+  "main": "dist/desktop/main.js"
 }

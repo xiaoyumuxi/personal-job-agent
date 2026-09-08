@@ -67,6 +67,7 @@ export class FillEngine {
     public overrides: Record<string, Fact> = {},
     public maxActions = 100,
     public maxSteps = 15,
+    private checkpoint: () => Promise<boolean> = async () => false,
   ) {}
   approveMapping(field: Field, path: string) {
     this.approved.set(field.uid, path);
@@ -113,6 +114,7 @@ export class FillEngine {
   }> {
     let filled = 0;
     for (; this.actionCount < this.maxActions;) {
+      if (await this.checkpoint()) await this.adoptManual();
       const ob = await this.observation();
       this.previous = ob;
       const issues: FillIssue[] = [];
@@ -232,6 +234,7 @@ export class FillEngine {
       }
       if (!candidate) return { ob, issues, filled };
       const { f, fact } = candidate;
+      if (await this.checkpoint()) { await this.adoptManual(); continue; }
       try {
         await this.execute(f, fact.value!);
         this.actionCount++;
@@ -354,6 +357,7 @@ export class FillEngine {
       (await loc.getAttribute("type")) !== "button"
     )
       throw new Error("新增按钮不明确或可能提交");
+    if (await this.checkpoint()) return this.adoptManual();
     await loc.click();
     const after = await this.observation();
     this.actionCount++;
@@ -381,6 +385,7 @@ export class FillEngine {
       (await loc.getAttribute("type")) !== "button"
     )
       throw new Error("疑似提交动作，必须人工执行");
+    if (await this.checkpoint()) return this.adoptManual();
     await loc.click();
     this.nextCount++;
     await this.page
