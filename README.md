@@ -1,12 +1,37 @@
-# JobAgent · 个人网申助手
+<div align="center">
+
+  <h1>JobAgent</h1>
+  <p><strong>把岗位、资料和申请进度放在一起的 macOS 个人网申助手</strong></p>
+
+  <p>
+    <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.2.0-2563eb" alt="源码版本 0.2.0"></a>
+    <a href="#快速开始"><img src="https://img.shields.io/badge/platform-macOS-111827?logo=apple&amp;logoColor=white" alt="平台 macOS"></a>
+    <a href="package.json"><img src="https://img.shields.io/badge/Node.js-24%2B-339933?logo=nodedotjs&amp;logoColor=white" alt="Node.js 24 及以上"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-ISC-15803d" alt="ISC 许可证"></a>
+  </p>
+
+  <p>
+    <a href="#核心功能">核心功能</a> ·
+    <a href="#快速开始">快速开始</a> ·
+    <a href="#架构概览">架构概览</a> ·
+    <a href="#文档导航">使用文档</a> ·
+    <a href="CONTRIBUTING.md">参与贡献</a> ·
+    <a href="CHANGELOG.md">更新记录</a>
+  </p>
+
+</div>
 
 面向 macOS 的本地个人网申工具。通过 Electron 客户端或 TypeScript CLI 管理岗位与资料，在专用 Chrome 中辅助填写申请、处理登录与资料补充、查询招聘进度，并将结果同步到飞书多维表格。
 
 **辅助填写，人工审核，最终提交由本人在官网完成。** 客户端与 CLI 共用本地数据和业务逻辑，无需账号系统或自建服务。
 
-[快速开始](#快速开始) · [客户端指南](docs/desktop.md) · [CLI 指南](docs/cli.md) · [飞书配置](docs/feishu.md) · [反馈问题](https://github.com/xiaoyumuxi/personal-job-agent/issues)
+## 为什么做 JobAgent
 
-## 功能
+个人网申往往要反复整理简历、登录不同官网、填写相同资料，再把申请状态抄回表格。信息分散后，很难看清哪项申请需要补充资料、重新登录或继续跟进。
+
+JobAgent 将这些步骤集中到一个本地工作台：用已确认的资料辅助填写，用任务详情提示下一项待办，用 SQLite 保留申请记录，再按需同步飞书。需要判断和确认的环节留给本人，在官网完成最终提交。
+
+## 核心功能
 
 | 模块       | 能力                                                                           |
 | ---------- | ------------------------------------------------------------------------------ |
@@ -131,6 +156,25 @@ CLI 支持 `--home <目录>` 或 `JOBAGENT_HOME`。客户端支持连接已有�
 - 客户端、CLI 和 launchd 共用跨进程锁。暂停在安全操作边界生效，已发出的网页操作无法撤回。
 - 飞书同步失败会保留本地故障。工作台的异常颜色不代表远端表格已经更新。
 
+## 架构概览
+
+Electron 客户端负责界面与交互，长任务在工作进程中执行。客户端和 CLI 复用 `src/` 中的业务函数；launchd 调用原 CLI，三种入口使用同一数据目录与跨进程锁。
+
+```mermaid
+flowchart LR
+    UI["React 客户端"] -->|"受限 IPC"| Main["Electron 主进程"]
+    Main --> Worker["utilityProcess 工作进程"]
+    Worker --> Core["共享 TypeScript 业务逻辑"]
+    CLI["CLI"] --> Core
+    Schedule["launchd 每日查询"] --> CLI
+    Core --> DB[("SQLite")]
+    Core --> Vault["macOS Keychain"]
+    Core --> Browser["Playwright / 专用 Chrome"]
+    Core --> Feishu["官方 lark-cli / 飞书"]
+```
+
+浏览器登录继续由 Chrome 管理，敏感资料由 Keychain 管理。客户端不解析终端输出，也不另建 HTTP 服务或第二套任务状态机。协议与安全实现见 [客户端指南](docs/desktop.md#交互协议与安全边界)。
+
 ## 开发与测试
 
 ```bash
@@ -149,7 +193,8 @@ JOBAGENT_TEST_PACKAGE=1 npm run test:desktop
 
 已记录的验收结果为核心测试 **34/34**、浏览器回归 **16/16**、含打包启动的客户端测试 **3/3**。这些是交付时的实际记录，不是持续集成状态；执行条件及未验证项见 [基础验证记录](docs/verification.md) 与 [桌面验收记录](docs/desktop-verification.md)。
 
-### 项目结构
+<details>
+<summary><strong>项目结构</strong></summary>
 
 ```text
 desktop/           Electron 主进程、preload、工作进程与 React 界面
@@ -169,6 +214,8 @@ tests/             业务、浏览器与桌面测试
 docs/              使用说明与验收记录
 ```
 
+</details>
+
 ## 当前限制
 
 - 文本简历仅自动提取部分基本信息；教育、实习和项目等需要本人补全。扫描 PDF 的 OCR 不支持。
@@ -176,14 +223,32 @@ docs/              使用说明与验收记录
 - 真实招聘站点联调、真实飞书授权及写入、真实模型端点、实际 launchd 安装执行尚未完成生产验证。
 - 没有账号系统、云端服务、插件市场、自动更新或自动最终提交功能。
 
+## 文档导航
+
+| 文档                                       | 内容                                                 |
+| ------------------------------------------ | ---------------------------------------------------- |
+| [客户端指南](docs/desktop.md)              | 日常操作、登录接管、资料补充、窗口生命周期与打包说明 |
+| [CLI 指南](docs/cli.md)                    | 全部主要命令、站点规则、字段映射与恢复操作           |
+| [飞书配置](docs/feishu.md)                 | 官方 CLI 授权、目标表字段、同步及异常颜色            |
+| [客户端验收](docs/desktop-verification.md) | 桌面测试场景、打包结果与未验证范围                   |
+| [基础验收](docs/verification.md)           | CLI、字段匹配、浏览器与同步的验证记录                |
+| [贡献指南](CONTRIBUTING.md)                | 开发准备、代码边界、测试选择与提交方式               |
+| [更新记录](CHANGELOG.md)                   | 源码版本与主要改动                                   |
+
 ## 参与贡献
 
-欢迎通过 [Issues](https://github.com/xiaoyumuxi/personal-job-agent/issues) 报告问题或讨论功能，通过 Pull Request 提交修改。
+欢迎贡献问题反馈、文档修正、站点规则和代码改进。开始前请阅读 [贡献指南](CONTRIBUTING.md)。
 
-- 问题报告请包含 macOS / Node 版本、使用入口、复现步骤和脱敏错误。不要上传真实简历、密钥、Cookie、Chrome 资料目录或完整数据库。
-- 业务改动应复用 `src/` 核心逻辑，让 CLI 和客户端保持一致；网站适配请附规则说明及本地 fixture。
-- 提交前运行类型检查和与改动相关的测试，并说明实际测试结果与未验证范围。测试数据必须与正式数据隔离。
+- [报告问题](https://github.com/xiaoyumuxi/personal-job-agent/issues/new?template=bug_report.yml)：提供复现步骤、环境和脱敏错误。
+- [提出建议](https://github.com/xiaoyumuxi/personal-job-agent/issues/new?template=feature_request.yml)：说明使用场景与期望结果。
+- [提交 Pull Request](https://github.com/xiaoyumuxi/personal-job-agent/pulls)：说明改动原因、实际验证结果和未验证范围。
+
+## 致谢
+
+项目基于 Electron、React、Playwright 和 SQLite 构建，通过飞书官方 CLI 接入多维表格。README 的信息组织参考了 [Lithe](https://github.com/1lck/Lithe-IDEA) 的项目介绍、安装、架构与开发文档结构。
 
 ## 许可证
 
-项目的 [package.json](package.json) 当前标记为 `ISC`，仓库尚未包含独立的 `LICENSE` 文本。完整授权文件待补充。
+本项目采用 [ISC License](LICENSE)，与 `package.json` 中的声明一致。
+
+Copyright (c) 2026 xiaoyumuxi。第三方依赖各自遵循其许可证。

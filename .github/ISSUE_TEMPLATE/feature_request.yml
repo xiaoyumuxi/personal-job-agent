@@ -1,0 +1,27 @@
+name: 功能建议
+description: 描述希望改善的个人网申场景。
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请从使用场景和期望结果出发。JobAgent 保留本人审核和官网最终提交，测试不能向真实企业发起申请。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解决的问题
+      description: 当前在哪一步遇到困难？谁会使用这个功能？请勿包含真实个人资料。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 期望的行为
+      description: 描述一次具体操作，以及完成后希望看到的结果。
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 现有处理方式与补充信息
+      description: 可选。可以附替代方案、参考文档或本地测试场景。

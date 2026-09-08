@@ -1,0 +1,58 @@
+name: 问题反馈
+description: 报告可复现的错误或与文档不一致的行为。
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请只提供脱敏信息，不要上传真实简历、密钥、Cookie、完整数据库或 Chrome 资料目录。
+  - type: dropdown
+    id: entry
+    attributes:
+      label: 使用入口
+      options:
+        - Electron 开发版（desktop:dev）
+        - 本机构建的 macOS 应用（.app）
+        - CLI
+        - launchd 每日查询
+        - 文档或其他
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 运行环境
+      description: 请填写源码版本或提交号、macOS 版本、芯片架构和 Node 版本；涉及外部工具时补充其版本。
+      placeholder: |
+        JobAgent 版本或提交号：
+        macOS：
+        芯片：Apple Silicon / Intel
+        Node：
+        Chrome / lark-cli（如适用）：
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 优先提供本地 fixture；网站链接请移除个人标识、token 和内推参数。
+      placeholder: |
+        1. 打开……
+        2. 点击或执行……
+        3. 出现……
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: 预期结果与实际结果
+      placeholder: |
+        预期：
+        实际：
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 脱敏错误或截图
+      description: 可选。上传前请检查个人信息；说明故障步骤和任务状态即可，无需完整日志或数据库。
