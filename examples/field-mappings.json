@@ -39,8 +39,16 @@
     "aliases": ["工作地点意向"],
     "path": "basic.locations"
   },
-  { "section": "基本信息", "aliases": ["到岗方式"], "path": "basic.workMode" },
-  { "section": "基本信息", "aliases": ["可工作日"], "path": "basic.workDays" },
+  {
+    "section": "基本信息",
+    "aliases": ["到岗方式"],
+    "path": "basic.workMode"
+  },
+  {
+    "section": "基本信息",
+    "aliases": ["可工作日"],
+    "path": "basic.workDays"
+  },
   {
     "section": "紧急联系人",
     "aliases": ["姓名", "Name"],
@@ -53,42 +61,366 @@
   },
   {
     "section": "教育经历",
-    "aliases": ["学校", "院校", "School"],
-    "path": "education.$.school"
+    "aliases": [
+      "学校",
+      "院校",
+      "School",
+      "学校名称",
+      "毕业院校",
+      "院校名称",
+      "School name"
+    ],
+    "path": "education.$.school",
+    "sectionAliases": [
+      "教育背景",
+      "教育信息",
+      "学习经历",
+      "Education",
+      "Education background"
+    ]
   },
   {
     "section": "教育经历",
-    "aliases": ["专业", "Major"],
-    "path": "education.$.major"
+    "aliases": ["专业", "Major", "所学专业", "专业名称", "Major subject"],
+    "path": "education.$.major",
+    "sectionAliases": [
+      "教育背景",
+      "教育信息",
+      "学习经历",
+      "Education",
+      "Education background"
+    ]
   },
   {
     "section": "教育经历",
-    "aliases": ["开始时间", "开始日期", "Start date"],
-    "path": "education.$.startDate"
+    "aliases": [
+      "开始时间",
+      "开始日期",
+      "Start date",
+      "入学时间",
+      "入学日期",
+      "Start time"
+    ],
+    "path": "education.$.startDate",
+    "sectionAliases": [
+      "教育背景",
+      "教育信息",
+      "学习经历",
+      "Education",
+      "Education background"
+    ]
   },
   {
     "section": "教育经历",
-    "aliases": ["结束时间", "结束日期", "End date"],
-    "path": "education.$.endDate"
+    "aliases": [
+      "结束时间",
+      "结束日期",
+      "End date",
+      "毕业时间",
+      "毕业日期",
+      "End time"
+    ],
+    "path": "education.$.endDate",
+    "sectionAliases": [
+      "教育背景",
+      "教育信息",
+      "学习经历",
+      "Education",
+      "Education background"
+    ]
   },
   {
     "section": "实习经历",
-    "aliases": ["公司", "Company"],
-    "path": "experience.$.company"
+    "aliases": [
+      "公司",
+      "Company",
+      "公司名称",
+      "工作单位",
+      "实习单位",
+      "企业名称",
+      "Company name"
+    ],
+    "path": "experience.$.company",
+    "sectionAliases": [
+      "工作经历",
+      "工作经验",
+      "工作/实习经历",
+      "工作与实习经历",
+      "实习经验",
+      "Work experience",
+      "Internship experience"
+    ]
   },
   {
     "section": "实习经历",
-    "aliases": ["岗位", "职位", "Title"],
-    "path": "experience.$.title"
+    "aliases": [
+      "岗位",
+      "职位",
+      "Title",
+      "职位名称",
+      "职务",
+      "岗位名称",
+      "担任职务",
+      "Job title"
+    ],
+    "path": "experience.$.title",
+    "sectionAliases": [
+      "工作经历",
+      "工作经验",
+      "工作/实习经历",
+      "工作与实习经历",
+      "实习经验",
+      "Work experience",
+      "Internship experience"
+    ]
   },
   {
     "section": "实习经历",
-    "aliases": ["开始时间", "开始日期", "Start date"],
-    "path": "experience.$.startDate"
+    "aliases": [
+      "开始时间",
+      "开始日期",
+      "Start date",
+      "入职时间",
+      "入职日期",
+      "Start time"
+    ],
+    "path": "experience.$.startDate",
+    "sectionAliases": [
+      "工作经历",
+      "工作经验",
+      "工作/实习经历",
+      "工作与实习经历",
+      "实习经验",
+      "Work experience",
+      "Internship experience"
+    ]
   },
   {
     "section": "实习经历",
-    "aliases": ["工作内容", "描述", "Description"],
-    "path": "experience.$.description"
+    "aliases": [
+      "工作内容",
+      "描述",
+      "Description",
+      "工作描述",
+      "实习内容",
+      "实习描述",
+      "工作职责",
+      "Work description"
+    ],
+    "path": "experience.$.description",
+    "sectionAliases": [
+      "工作经历",
+      "工作经验",
+      "工作/实习经历",
+      "工作与实习经历",
+      "实习经验",
+      "Work experience",
+      "Internship experience"
+    ]
+  },
+  {
+    "section": "教育经历",
+    "aliases": ["学历", "最高学历", "学历层次", "Qualification"],
+    "path": "education.$.qualification",
+    "sectionAliases": [
+      "教育背景",
+      "教育信息",
+      "学习经历",
+      "Education",
+      "Education background"
+    ]
+  },
+  {
+    "section": "教育经历",
+    "aliases": ["学位", "Degree"],
+    "path": "education.$.degree",
+    "sectionAliases": [
+      "教育背景",
+      "教育信息",
+      "学习经历",
+      "Education",
+      "Education background"
+    ]
+  },
+  {
+    "section": "教育经历",
+    "aliases": ["在校经历", "教育描述", "主修课程"],
+    "path": "education.$.description",
+    "sectionAliases": [
+      "教育背景",
+      "教育信息",
+      "学习经历",
+      "Education",
+      "Education background"
+    ]
+  },
+  {
+    "section": "实习经历",
+    "aliases": [
+      "结束时间",
+      "结束日期",
+      "离职时间",
+      "离职日期",
+      "End date",
+      "End time"
+    ],
+    "path": "experience.$.endDate",
+    "sectionAliases": [
+      "工作经历",
+      "工作经验",
+      "工作/实习经历",
+      "工作与实习经历",
+      "实习经验",
+      "Work experience",
+      "Internship experience"
+    ]
+  },
+  {
+    "section": "实习经历",
+    "aliases": ["是否在职", "目前在职", "Currently employed"],
+    "path": "experience.$.current",
+    "sectionAliases": [
+      "工作经历",
+      "工作经验",
+      "工作/实习经历",
+      "工作与实习经历",
+      "实习经验",
+      "Work experience",
+      "Internship experience"
+    ]
+  },
+  {
+    "section": "项目经历",
+    "aliases": ["项目名称", "项目名", "Project name"],
+    "path": "project.$.name",
+    "sectionAliases": [
+      "项目经验",
+      "个人项目",
+      "项目实践",
+      "Projects",
+      "Project experience"
+    ]
+  },
+  {
+    "section": "项目经历",
+    "aliases": ["项目角色", "担任角色", "职务", "职位", "Role"],
+    "path": "project.$.role",
+    "sectionAliases": [
+      "项目经验",
+      "个人项目",
+      "项目实践",
+      "Projects",
+      "Project experience"
+    ]
+  },
+  {
+    "section": "项目经历",
+    "aliases": [
+      "开始时间",
+      "开始日期",
+      "项目开始时间",
+      "Start date",
+      "Start time"
+    ],
+    "path": "project.$.startDate",
+    "sectionAliases": [
+      "项目经验",
+      "个人项目",
+      "项目实践",
+      "Projects",
+      "Project experience"
+    ]
+  },
+  {
+    "section": "项目经历",
+    "aliases": ["结束时间", "结束日期", "项目结束时间", "End date", "End time"],
+    "path": "project.$.endDate",
+    "sectionAliases": [
+      "项目经验",
+      "个人项目",
+      "项目实践",
+      "Projects",
+      "Project experience"
+    ]
+  },
+  {
+    "section": "项目经历",
+    "aliases": [
+      "项目描述",
+      "项目介绍",
+      "项目简介",
+      "Description",
+      "Project description"
+    ],
+    "path": "project.$.description",
+    "sectionAliases": [
+      "项目经验",
+      "个人项目",
+      "项目实践",
+      "Projects",
+      "Project experience"
+    ]
+  },
+  {
+    "section": "项目经历",
+    "aliases": ["项目职责", "项目中职责", "个人职责", "Responsibilities"],
+    "path": "project.$.responsibilities",
+    "sectionAliases": [
+      "项目经验",
+      "个人项目",
+      "项目实践",
+      "Projects",
+      "Project experience"
+    ]
+  },
+  {
+    "section": "项目经历",
+    "aliases": ["是否至今", "仍在进行", "Ongoing"],
+    "path": "project.$.current",
+    "sectionAliases": [
+      "项目经验",
+      "个人项目",
+      "项目实践",
+      "Projects",
+      "Project experience"
+    ]
+  },
+  {
+    "section": "基本信息",
+    "aliases": ["GitHub", "GitHub 主页", "Github URL"],
+    "path": "basic.github"
+  },
+  {
+    "section": "求职偏好",
+    "aliases": [
+      "期望职位",
+      "意向岗位",
+      "求职意向",
+      "期望从事职业",
+      "Desired position"
+    ],
+    "path": "preference.role",
+    "sectionAliases": ["求职意向", "工作意向", "Job preference"]
+  },
+  {
+    "section": "求职偏好",
+    "aliases": [
+      "期望工作城市",
+      "期望工作地点",
+      "意向城市",
+      "Expected location"
+    ],
+    "path": "preference.location",
+    "sectionAliases": ["求职意向", "工作意向", "Job preference"]
+  },
+  {
+    "section": "专业技能",
+    "aliases": ["专业技能", "技能描述", "技能特长", "Skills"],
+    "path": "skills.description"
+  },
+  {
+    "section": "开源与技术实践",
+    "aliases": ["开源贡献", "技术实践", "个人作品", "Portfolio"],
+    "path": "portfolio.description"
   }
 ]

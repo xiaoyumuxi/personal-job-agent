@@ -642,6 +642,12 @@ tr.current td:first-child {
 .fact {
   padding: 7px 0;
 }
+.fact-long {
+  grid-column: 1 / -1;
+}
+.fact-long textarea {
+  min-height: 140px;
+}
 .fact label {
   font-size: 12px;
   font-weight: 550;

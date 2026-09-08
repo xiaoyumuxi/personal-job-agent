@@ -50,7 +50,7 @@ npm run dev -- profile set basic.email
 
 CLI 首次 OCR 会使用 Apple Command Line Tools 编译本地 `pdf-ocr-helper`；已构建的桌面客户端内置该组件。扫描图片只在进程内存中处理，不生成临时截图、不上传云端。OCR 结果仍为待确认候选，不能保证自动结构化提取所有教育或工作经历。
 
-文本提取首版仅尝试姓名、邮箱、手机号；**不会编造教育经历、日期、成绩或技能**。请参照 [个人资料模板](../examples/profile.template.json) 补充 JSON，或使用 `profile set`。输入值在交互终端隐藏，不建议将敏感值写进 Shell 参数。JSON 文件中的 `confirmed` 或披露权限不会直接被采信，导入后仍须本人确认。再次导入与已确认值冲突时，保留冲突候选等待处理。
+文字与 OCR 结果均会按章节拆分教育、工作/实习和项目经历，并保留技能与开源实践文字；**不会编造简历未给出的学位、角色、日期或成绩**。可以参照 [个人资料模板](../examples/profile.template.json) 补充 JSON，或使用 `profile set`。输入值在交互终端隐藏，不建议将敏感值写进 Shell 参数。JSON 文件中的 `confirmed` 或披露权限不会直接被采信，导入后仍须本人确认。重复导入同一经历不追加记录；与已确认值不一致时保留冲突候选。字段与别名见 [经历解析与网申映射](resume-mapping.md)。
 
 ```bash
 npm run dev -- profile import /absolute/path/my-profile.json

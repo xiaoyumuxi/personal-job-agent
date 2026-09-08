@@ -14,6 +14,7 @@ import {
   type Config,
 } from "./config.js";
 import { Store } from "./db.js";
+import { isRecordKind } from "./types.js";
 import {
   loadProfile,
   importProfile,
@@ -225,18 +226,15 @@ profile
   );
 profile
   .command("record <kind> <id>")
-  .description("添加稳定的 education / experience 资料记录 ID")
+  .description("添加稳定的 education / experience / project 资料记录 ID")
   .action((kind, id) =>
     state(async ({ vault, store }) => {
-      if (
-        !["education", "experience"].includes(kind) ||
-        !/^[a-zA-Z0-9_-]+$/.test(id)
-      )
+      if (!isRecordKind(kind) || !/^[a-zA-Z0-9_-]+$/.test(id))
         throw new Error(
-          "kind 应为 education 或 experience；id 使用字母数字下划线",
+          "kind 应为 education、experience 或 project；id 使用字母数字下划线",
         );
       const p = await loadProfile(vault);
-      const k = kind as "education" | "experience";
+      const k = kind;
       if (!p.records[k].includes(id)) p.records[k].push(id);
       await saveProfile(vault, store, p);
       console.log(

@@ -12,6 +12,8 @@ import { readApplications } from "../src/track.js";
 import { mappings } from "../src/config.js";
 import { sampleProfile, site, origin, testState } from "./helpers.js";
 import { ProfileSchema } from "../src/types.js";
+import { draftFromText, confirmFact } from "../src/profile.js";
+import { structuredResume } from "./resume-fixture.js";
 let s: ReturnType<typeof testState>;
 test.beforeEach(async ({ page }) => {
   s = testState();
@@ -359,4 +361,102 @@ test("暂停在写入前生效；恢复重新观察并保护期间的人工输�
   );
   await e.pass();
   expect(await page.locator("#name").inputValue()).toBe("暂停期间本人修改");
+});
+
+test("简历经历经本人确认和绑定后填写公开字段别名，项目与实习不会串行", async ({
+  page,
+}) => {
+  const profile = draftFromText(structuredResume);
+  await page.setContent(`<main data-step="resume">
+    <section data-section="教育背景"><div data-record="edu" data-kind="education">
+      <label>学校名称<input required id="school"></label>
+      <label>学历<select required id="qualification"><option></option><option>本科</option><option>硕士</option></select></label>
+      <label>入学时间<input required type="month" id="enrolled"></label>
+    </div></section>
+    <section data-section="工作经历"><div data-record="work" data-kind="experience">
+      <label>公司名称<input required id="company"></label>
+      <label>职务<input required id="title"></label>
+      <label>工作描述<textarea required id="work-description"></textarea></label>
+    </div></section>
+    <section data-section="项目经验"><div data-record="project" data-kind="project">
+      <label>项目名称<input required id="project-name"></label>
+      <label>开始时间<input required type="month" id="project-start"></label>
+      <label>项目描述<textarea required id="project-description"></textarea></label>
+      <label>项目中职责<textarea required id="project-responsibilities"></textarea></label>
+      <label>职务<input required id="project-role"></label>
+    </div></section>
+  </main>`);
+  const e = new FillEngine(
+    page,
+    profile,
+    mappings(s.config, s.dir),
+    undefined,
+    [origin],
+    s.dir,
+  );
+  expect((await e.pass()).issues.some((i) => i.reason.includes("绑定"))).toBe(
+    true,
+  );
+  const ob = await e.observation();
+  for (const kind of ["education", "experience", "project"] as const) {
+    e.bind(
+      ob.fields.find((f) => f.repeatKind === kind)!.record!,
+      profile.records[kind][0]!,
+    );
+  }
+  expect((await e.pass()).filled).toBe(0);
+  for (const [path, fact] of Object.entries(profile.facts)) {
+    if (fact.value !== undefined) confirmFact(profile, path, fact.value);
+  }
+  const result = await e.pass();
+  expect(await page.locator("#school").inputValue()).toBe("南湖测试大学");
+  expect(await page.locator("#enrolled").inputValue()).toBe("2022-09");
+  expect(await page.locator("#company").inputValue()).toBe("云帆测试公司");
+  expect(await page.locator("#title").inputValue()).toBe("平台开发工程师");
+  expect(await page.locator("#project-name").inputValue()).toBe(
+    "多协议通信测试框架",
+  );
+  expect(await page.locator("#project-description").inputValue()).toContain(
+    "多协议请求处理",
+  );
+  expect(await page.locator("#project-responsibilities").inputValue()).toBe(
+    "负责服务发现与故障重试模块。",
+  );
+  expect(await page.locator("#project-role").inputValue()).toBe("");
+  expect(
+    result.issues.some(
+      (i) => i.path?.endsWith(".role") && i.reason === "缺少已确认资料",
+    ),
+  ).toBe(true);
+});
+
+test("年月精度与至今遇到官网完整日期控件时要求人工补充，不伪造日期", async ({
+  page,
+}) => {
+  const profile = draftFromText(structuredResume);
+  await page.setContent(`<section data-section="工作经历"><div data-record="work" data-kind="experience">
+    <label>入职时间<input required type="date" id="start"></label>
+    <label>离职时间<input required type="date" id="end"></label>
+  </div></section>`);
+  const e = new FillEngine(
+    page,
+    profile,
+    mappings(s.config, s.dir),
+    undefined,
+    [origin],
+    s.dir,
+  );
+  e.bind(
+    (await e.observation()).fields[0]!.record!,
+    profile.records.experience[0]!,
+  );
+  for (const [path, fact] of Object.entries(profile.facts))
+    if (fact.value !== undefined) confirmFact(profile, path, fact.value);
+  const result = await e.pass();
+  expect(result.issues.map((i) => i.reason).join(" ")).toContain(
+    "不会擅自补成每月 1 日",
+  );
+  expect(result.issues.map((i) => i.reason).join(" ")).toContain("仍在进行");
+  expect(await page.locator("#start").inputValue()).toBe("");
+  expect(await page.locator("#end").inputValue()).toBe("");
 });

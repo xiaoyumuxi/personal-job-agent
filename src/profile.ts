@@ -5,6 +5,9 @@ import { ProfileSchema, type Profile, type Fact, type Value } from "./types.js";
 import type { Vault } from "./vault.js";
 import type { Store } from "./db.js";
 import { recognizePDFPages } from "./ocr.js";
+import { orderedPDFText } from "./pdf-text.js";
+import { parseResumeText } from "./resume-parser.js";
+export { parseResumeText as draftFromText } from "./resume-parser.js";
 export interface ProfileImportInfo {
   format: "pdf" | "text" | "json";
   pages?: number;
@@ -19,33 +22,6 @@ export async function saveProfile(vault: Vault, store: Store, p: Profile) {
   await vault.set("profile", JSON.stringify(ProfileSchema.parse(p)));
   if (vault.kind !== "session") store.setMeta("profileRef", "keychain:profile");
   else store.event(null, "PROFILE_SESSION_ONLY");
-}
-export function draftFromText(text: string): Profile {
-  const p = blankProfile();
-  const add = (key: string, values: string[]) => {
-    const unique = [...new Set(values)];
-    p.facts[key] =
-      unique.length === 0
-        ? { state: "missing", discloseTo: [] }
-        : unique.length === 1
-          ? { state: "pending", value: unique[0], discloseTo: [] }
-          : { state: "conflict", candidates: unique, discloseTo: [] };
-  };
-  add(
-    "basic.email",
-    text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? [],
-  );
-  add(
-    "basic.phone",
-    text.match(/(?<!\d)(?:\+?86[- ]?)?1[3-9]\d{9}(?!\d)/g) ?? [],
-  );
-  add(
-    "basic.name",
-    [...text.matchAll(/(?:姓名|Name)\s*[:：]\s*([^\n\r]+)/gi)].map((m) =>
-      m[1]!.trim(),
-    ),
-  );
-  return p;
 }
 export async function importProfile(
   file: string | undefined,
@@ -97,11 +73,7 @@ export async function importProfile(
           const doc = await task.promise;
           for (let i = 1; i <= doc.numPages; i++) {
             const content = await (await doc.getPage(i)).getTextContent();
-            pages.push(
-              content.items
-                .map((x) => ("str" in x ? x.str + (x.hasEOL ? "\n" : " ") : ""))
-                .join(""),
-            );
+            pages.push(orderedPDFText(content.items));
           }
         } finally {
           await task.destroy();
@@ -131,12 +103,12 @@ export async function importProfile(
         extracted?.({ format: "text" });
       } else
         throw new Error("个人资料仅支持 PDF（文字版或扫描版）、TXT/MD、JSON");
-      p = draftFromText(text ?? "");
+      p = parseResumeText(text ?? "");
       if (ext === ".pdf") p.resume = await storeAttachment(file, dir);
     }
   } else {
     if (!text?.trim()) throw new Error("请提供文件或粘贴文本");
-    p = draftFromText(text);
+    p = parseResumeText(text);
     extracted?.({ format: "text" });
   }
   return p;
@@ -164,7 +136,13 @@ export function confirmFact(p: Profile, key: string, value: Value) {
     key.includes("constructor")
   )
     throw new Error("资料字段路径不合法");
-  p.facts[key] = { state: "confirmed", value, discloseTo: [] };
+  const source = p.facts[key]?.source;
+  p.facts[key] = {
+    state: "confirmed",
+    value,
+    discloseTo: [],
+    ...(source ? { source } : {}),
+  };
 }
 export function factFor(
   p: Profile,

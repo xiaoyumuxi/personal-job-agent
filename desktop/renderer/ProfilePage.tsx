@@ -9,7 +9,7 @@ import {
   type Send,
 } from "./shared.js";
 import type { ProfileView } from "../contract.js";
-import type { Fact, Value } from "../../src/types.js";
+import type { Fact, Value, RecordKind } from "../../src/types.js";
 export function ProfilePage({
   busy,
   perform,
@@ -22,7 +22,7 @@ export function ProfilePage({
   const [view, setView] = useState<ProfileView>(),
     [customPath, setCustomPath] = useState(""),
     [customValue, setCustomValue] = useState(""),
-    [kind, setKind] = useState<"education" | "experience">("education"),
+    [kind, setKind] = useState<RecordKind>("education"),
     [recordId, setRecordId] = useState(""),
     [importing, setImporting] = useState(false);
   const load = async () => {
@@ -85,9 +85,16 @@ export function ProfilePage({
       </div>
       <p className="hint">
         支持文字版和扫描版 PDF、TXT/MD、JSON。扫描页自动使用 macOS 本地 OCR，
-        不上传云端，可能需要数十秒。识别结果需要本人确认；姓名、电话和邮箱之外的经历需要人工补充或导入结构化
-        JSON。
+        不上传云端，可能需要数十秒。自动拆分教育、工作/实习和项目经历，保留起止时间与原文描述；缺失或不确定的字段仍需补充。
       </p>
+      {view && (
+        <p className="hint">
+          当前资料：教育 {view.profile.records.education.length} 段 · 工作/实习{" "}
+          {view.profile.records.experience.length} 段 · 项目{" "}
+          {view.profile.records.project.length}{" "}
+          段。请逐项核对并确认，未确认值不会用于填写。
+        </p>
+      )}
       {groups.map((group) => (
         <section className="panel" key={group}>
           <h2>{group}</h2>
@@ -125,7 +132,8 @@ export function ProfilePage({
             onChange={(e) => setKind(e.target.value as typeof kind)}
           >
             <option value="education">教育经历</option>
-            <option value="experience">实习经历</option>
+            <option value="experience">工作 / 实习经历</option>
+            <option value="project">项目经历</option>
           </select>
           <input
             aria-label="经历记录ID"
@@ -147,8 +155,8 @@ export function ProfilePage({
           </button>
         </div>
         <p className="hint">
-          沿用现有 facts 字段。项目可用 project.名称.description，求职偏好可用
-          preference.location。项目重复区块的自动绑定目前不支持。
+          同一官网上的多段教育、实习或项目，需要在任务抽屉中选择对应的资料记录后填写。求职偏好也可补充
+          preference.location 等字段。
         </p>
         <div className="inline-form">
           <input
@@ -217,7 +225,7 @@ function FactEditor({
     [error, setError] = useState("");
   return (
     <form
-      className="fact"
+      className={`fact${/(?:description|responsibilities)$/.test(path) ? " fact-long" : ""}`}
       onSubmit={(e) => {
         e.preventDefault();
         setError("");
@@ -251,7 +259,6 @@ function FactEditor({
         <label htmlFor={path}>{text}</label>
         <Badge value={fact?.state || "missing"} />
       </div>
-      <small className="field-path">{path}</small>
       {fact?.candidates && (
         <div className="candidates">
           候选：
@@ -268,12 +275,28 @@ function FactEditor({
           ))}
         </div>
       )}
-      <input
-        id={path}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        required
-      />
+      {/(?:description|responsibilities)$/.test(path) ? (
+        <textarea
+          id={path}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          rows={6}
+          required
+        />
+      ) : (
+        <input
+          id={path}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          required
+        />
+      )}
+      {fact?.source && (
+        <details className="hint">
+          <summary>查看简历中的识别依据</summary>
+          <p style={{ whiteSpace: "pre-wrap" }}>{fact.source.text}</p>
+        </details>
+      )}
       <div className="field-actions">
         <select
           aria-label={`${text}值类型`}

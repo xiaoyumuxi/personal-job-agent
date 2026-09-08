@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import { z } from "zod";
-import { ValueSchema } from "./types.js";
+import { ValueSchema, type RecordKind } from "./types.js";
 import { ask, yes } from "./prompt.js";
 export const AnswerSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("confirm"), accepted: z.boolean() }).strict(),
@@ -51,6 +51,7 @@ export interface Question {
     reason: string;
     canAnswer: boolean;
     records?: string[];
+    recordKind?: RecordKind;
   }[];
   paths?: string[];
   additions?: string[];

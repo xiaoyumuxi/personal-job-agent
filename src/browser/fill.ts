@@ -21,10 +21,12 @@ export function matchField(f: Field, rules: MappingRule[]): string | undefined {
   if (f.configuredPath) return f.configuredPath;
   const hits = rules.filter(
     (r) =>
-      norm(r.section) === norm(f.section) &&
-      r.aliases.some((a) => norm(a) === norm(f.label)),
+      [r.section, ...(r.sectionAliases ?? [])].some(
+        (s) => norm(s) === norm(f.section),
+      ) && r.aliases.some((a) => norm(a) === norm(f.label)),
   );
-  return hits.length === 1 ? hits[0]!.path : undefined;
+  const paths = [...new Set(hits.map((r) => r.path))];
+  return paths.length === 1 ? paths[0] : undefined;
 }
 export function cacheKey(
   site: Site | undefined,
@@ -202,6 +204,25 @@ export class FillEngine {
         ) {
           continue;
         }
+        if (
+          f.type === "date" &&
+          /^\d{4}(?:-\d{2})?$/.test(String(fact.value))
+        ) {
+          issues.push({
+            field: f,
+            path,
+            reason: "简历日期只有年或月，请补充具体日期；不会擅自补成每月 1 日",
+          });
+          continue;
+        }
+        if (["date", "month"].includes(f.type) && fact.value === "至今") {
+          issues.push({
+            field: f,
+            path,
+            reason: "此经历仍在进行，请在官网选择至今或补充结束日期",
+          });
+          continue;
+        }
         if (f.type === "radio") {
           const group = ob.fields.filter(
             (g) =>
@@ -234,7 +255,10 @@ export class FillEngine {
       }
       if (!candidate) return { ob, issues, filled };
       const { f, fact } = candidate;
-      if (await this.checkpoint()) { await this.adoptManual(); continue; }
+      if (await this.checkpoint()) {
+        await this.adoptManual();
+        continue;
+      }
       try {
         await this.execute(f, fact.value!);
         this.actionCount++;

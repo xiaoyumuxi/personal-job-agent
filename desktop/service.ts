@@ -15,7 +15,7 @@ import {
 } from "../src/config.js";
 import { KeychainVault, type Vault } from "../src/vault.js";
 import { loadProfile, saveProfile, confirmFact } from "../src/profile.js";
-import { SiteSchema } from "../src/types.js";
+import { SiteSchema, isRecordKind } from "../src/types.js";
 import {
   Runtime,
   liveStates,
@@ -191,13 +191,12 @@ export class DesktopService {
       .flatMap((r) => {
         if (!r.path.includes("$"))
           return [{ path: r.path, label: r.aliases[0]!, section: r.section }];
-        const kind = r.path.startsWith("education")
-          ? "education"
-          : "experience";
-        return profile.records[kind].map((id) => ({
+        const kind = r.path.split(".")[0];
+        if (!isRecordKind(kind)) return [];
+        return profile.records[kind].map((id, index) => ({
           path: r.path.replace("$", id),
-          label: `${id} · ${r.aliases[0]}`,
-          section: r.section,
+          label: r.aliases[0]!,
+          section: `${r.section} ${index + 1} · ${profile.facts[`${kind}.${id}.${kind === "education" ? "school" : kind === "project" ? "name" : "company"}`]?.value || "待补充名称"}`,
         }));
       });
     for (const path of Object.keys(profile.facts))

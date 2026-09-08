@@ -2,7 +2,12 @@ import { z } from "zod";
 import { AnswerSchema } from "../src/interaction.js";
 import { ValueSchema } from "../src/types.js";
 import { ConfigSchema } from "../src/config.js";
-import type { Job, Application, Profile } from "../src/types.js";
+import {
+  RecordKindSchema,
+  type Job,
+  type Application,
+  type Profile,
+} from "../src/types.js";
 import type { RunRecord, TaskEvent } from "../src/application/runtime.js";
 import type { doctor } from "../src/application/services.js";
 import type { ProfileImportInfo } from "../src/profile.js";
@@ -75,7 +80,7 @@ export const CommandSchema = z.discriminatedUnion("method", [
   z
     .object({
       method: z.literal("record"),
-      kind: z.enum(["education", "experience"]),
+      kind: RecordKindSchema,
       id: z.string().regex(/^[a-zA-Z0-9_-]{1,60}$/),
     })
     .strict(),

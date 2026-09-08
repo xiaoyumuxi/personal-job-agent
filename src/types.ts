@@ -13,8 +13,15 @@ export const FactSchema = z.object({
   value: ValueSchema.optional(),
   candidates: z.array(ValueSchema).optional(),
   discloseTo: z.array(z.string()).default([]),
+  source: z.object({ text: z.string().max(2000) }).optional(),
 });
 export type Fact = z.infer<typeof FactSchema>;
+export const RecordKindSchema = z.enum(["education", "experience", "project"]);
+export type RecordKind = z.infer<typeof RecordKindSchema>;
+export const recordKinds = RecordKindSchema.options;
+export function isRecordKind(value: unknown): value is RecordKind {
+  return RecordKindSchema.safeParse(value).success;
+}
 export const ProfileSchema = z.object({
   version: z.literal(1).default(1),
   facts: z.record(z.string(), FactSchema).default({}),
@@ -22,8 +29,9 @@ export const ProfileSchema = z.object({
     .object({
       education: z.array(z.string()).default([]),
       experience: z.array(z.string()).default([]),
+      project: z.array(z.string()).default([]),
     })
-    .default({ education: [], experience: [] }),
+    .default(() => ({ education: [], experience: [], project: [] })),
   resume: z.string().optional(),
 });
 export type Profile = z.infer<typeof ProfileSchema>;
@@ -89,6 +97,7 @@ export interface Outbox {
 }
 export const MappingSchema = z.object({
   section: z.string(),
+  sectionAliases: z.array(z.string()).optional(),
   aliases: z.array(z.string()),
   path: z.string(),
 });
@@ -138,7 +147,7 @@ export const SiteSchema = z.object({
             section: z.string(),
             container: z.string(),
             records: z.string(),
-            kind: z.enum(["education", "experience"]),
+            kind: RecordKindSchema,
             add: z.string().optional(),
           }),
         )

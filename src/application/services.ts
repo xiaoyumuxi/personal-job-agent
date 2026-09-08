@@ -53,23 +53,25 @@ export async function importProfileFile(
     old = await loadProfile(vault);
   for (const [k, f] of Object.entries(draft.facts)) {
     const prior = old.facts[k];
-    if (prior?.state === "confirmed" && f.state === "missing")
-      draft.facts[k] = prior;
-    else if (
-      prior?.state === "confirmed" &&
-      f.value !== undefined &&
-      JSON.stringify(prior.value) !== JSON.stringify(f.value)
-    )
-      draft.facts[k] = {
-        state: "conflict",
-        candidates: [prior.value!, f.value],
-        discloseTo: [],
-      };
-    else if (
-      prior?.state === "confirmed" &&
-      JSON.stringify(prior.value) === JSON.stringify(f.value)
-    )
-      draft.facts[k] = prior;
+    if (prior?.state !== "confirmed") continue;
+    if (f.state === "missing") draft.facts[k] = prior;
+    else {
+      const values = [prior.value, ...(f.candidates ?? [f.value])].filter(
+        (v) => v !== undefined,
+      );
+      const candidates = [
+        ...new Map(values.map((v) => [JSON.stringify(v), v])).values(),
+      ];
+      draft.facts[k] =
+        candidates.length === 1
+          ? prior
+          : {
+              state: "conflict",
+              candidates,
+              discloseTo: [],
+              source: f.source,
+            };
+    }
   }
   const merged: Profile = {
     ...old,
@@ -82,6 +84,7 @@ export async function importProfileFile(
       experience: [
         ...new Set([...old.records.experience, ...draft.records.experience]),
       ],
+      project: [...new Set([...old.records.project, ...draft.records.project])],
     },
     resume: draft.resume ?? old.resume,
   };

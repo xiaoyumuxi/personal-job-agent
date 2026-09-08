@@ -20,13 +20,28 @@ import { initialize, readConfig, saveConfig } from "../src/config.js";
 import { KeychainVault } from "../src/vault.js";
 import type { Snapshot, ProfileView } from "../desktop/contract.js";
 import { textPDF, scannedPDF } from "./pdf-fixture.js";
+import { structuredResume } from "./resume-fixture.js";
 test.describe.configure({ mode: "serial" });
 let home: string, vault: KeychainVault, client: ElectronApplication | undefined;
 let authenticated = false,
   lastName = "",
+  lastProjectName = "",
   appUrl = "",
   jobId = "";
 const server = createServer((req, res) => {
+  if (req.url?.startsWith("/test/project-value?")) {
+    lastProjectName =
+      new URL(req.url, "http://local.test").searchParams.get("name") || "";
+    res.end("ok");
+    return;
+  }
+  if (req.url === "/test/resume-form") {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.end(
+      `<!doctype html><html lang="zh"><h1>本地项目填写测试</h1><div data-auth="valid">测试账户有效</div><section data-section="项目经验"><div data-record="project" data-kind="project"><label>项目名称<input required oninput="fetch('/test/project-value?name='+encodeURIComponent(this.value))"></label></div></section></html>`,
+    );
+    return;
+  }
   if (req.url === "/test/login") {
     authenticated = true;
     res.end("test only");
@@ -203,8 +218,15 @@ test("existing SQLite → one task → login yellow → answer → pause/resume 
   expect((await read()).run?.runId).toBe(loginRun.run?.runId);
   await page.getByRole("button", { name: "已完成登录，重新检查" }).click();
   await expect
-    .poll(async () => (await read()).run?.request?.requestId)
-    .not.toBe(loginRun.run?.request?.requestId);
+    .poll(async () => {
+      const run = (await read()).run;
+      return (
+        run?.state === "WAIT_LOGIN" &&
+        !!run.request?.requestId &&
+        run.request.requestId !== loginRun.run?.request?.requestId
+      );
+    })
+    .toBe(true);
   expect((await read()).rows[0]!.application?.authStatus).toBe("AUTH_REQUIRED");
   await fetch(appUrl + "/test/login");
   await page.getByRole("button", { name: "已完成登录，重新检查" }).click();
@@ -283,7 +305,10 @@ test("existing SQLite → one task → login yellow → answer → pause/resume 
     "undefined",
   );
   expect(await page.evaluate(() => localStorage.length)).toBe(0);
-  await page.screenshot({ path: "/private/tmp/jobagent-desktop-settings.png" });
+  if (process.env.JOBAGENT_TEST_SCREENSHOTS)
+    await page.screenshot({
+      path: "/private/tmp/jobagent-desktop-settings.png",
+    });
   expect(errors).toEqual([]);
   await stopClient();
   const reopened = await launch();
@@ -293,9 +318,10 @@ test("existing SQLite → one task → login yellow → answer → pause/resume 
   expect(after.rows[0]!.application?.id).toBe(before.rows[0]!.application?.id);
   expect(after.busy).toBe(false);
   expect(after.events.filter((e) => e.kind === "TASK_STARTED")).toHaveLength(2);
-  await reopened.screenshot({
-    path: "/private/tmp/jobagent-desktop-workbench.png",
-  });
+  if (process.env.JOBAGENT_TEST_SCREENSHOTS)
+    await reopened.screenshot({
+      path: "/private/tmp/jobagent-desktop-workbench.png",
+    });
   await stopClient();
 });
 test("native import bridge, real retry exhaustion colors, unknown-result guard and window lifecycle", async () => {
@@ -352,13 +378,16 @@ test("native import bridge, real retry exhaustion colors, unknown-result guard a
   await expect(
     page.getByText("同步故障：FEISHU_TEMPORARY_ERROR。", { exact: false }),
   ).toBeVisible();
-  await page.screenshot({ path: "/private/tmp/jobagent-desktop-retry.png" });
+  if (process.env.JOBAGENT_TEST_SCREENSHOTS)
+    await page.screenshot({ path: "/private/tmp/jobagent-desktop-retry.png" });
   const store = new Store(home);
   const a = store.app(jobId);
   a.state = "UNKNOWN_RESULT";
   a.nextAction = "测试未知提交结果";
   store.save(a, "TEST_UNKNOWN_RESULT");
   store.close();
+  // On smaller screens the drawer intentionally overlays the workbench.
+  await page.getByRole("button", { name: "关闭任务详情" }).click();
   await page.getByRole("button", { name: "刷新工作台" }).click();
   const rejected = await page.evaluate(async (id) => {
     try {
@@ -373,6 +402,11 @@ test("native import bridge, real retry exhaustion colors, unknown-result guard a
     }
   }, jobId);
   expect(rejected).toBe(true);
+  await page
+    .getByRole("button", {
+      name: "客户端验收专用公司 测试岗位（不会真实投递）",
+    })
+    .click();
   await expect(
     page.getByRole("button", { name: "记录核查结果" }),
   ).toBeVisible();
@@ -431,6 +465,8 @@ test("native import bridge, real retry exhaustion colors, unknown-result guard a
   await stopClient();
 });
 async function verifyPDFImport(page: Page, variant: string) {
+  const closeDrawer = page.getByRole("button", { name: "关闭任务详情" });
+  if (await closeDrawer.isVisible()) await closeDrawer.click();
   await page.getByRole("button", { name: "我的资料", exact: true }).click();
   const read = () =>
     page.evaluate(() =>
@@ -517,17 +553,103 @@ test("PDF import and local OCR use real Electron and Vision; failed recognition 
   await verifyPDFImport(page, "desktop");
   await stopClient();
 });
+async function verifyStructuredImport(page: Page) {
+  const closeDrawer = page.getByRole("button", { name: "关闭任务详情" });
+  if (await closeDrawer.isVisible()) await closeDrawer.click();
+  const file = join(home, "结构化经历测试.txt");
+  writeFileSync(file, structuredResume);
+  await client!.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [path],
+    });
+  }, file);
+  await page.getByRole("button", { name: "我的资料", exact: true }).click();
+  await page
+    .getByRole("button", { name: "导入简历 / 资料", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText("导入完成");
+  const read = () =>
+    page.evaluate(() =>
+      window.jobagent.invoke({ method: "profile" }),
+    ) as Promise<ProfileView>;
+  const before = await read();
+  expect(before.profile.records.education).toHaveLength(1);
+  expect(before.profile.records.experience).toHaveLength(2);
+  expect(before.profile.records.project).toHaveLength(1);
+  await expect(
+    page.getByRole("heading", { name: /项目经历 1 · 多协议通信测试框架/ }),
+  ).toBeVisible();
+  const path = `project.${before.profile.records.project[0]}.description`;
+  const input = page.locator(`[id="${path}"]`);
+  await expect(input).toHaveJSProperty("tagName", "TEXTAREA");
+  await expect(input).toHaveValue(/多协议请求处理/);
+  const form = input.locator("..");
+  await form.getByRole("button", { name: "确认并保存" }).click();
+  await expect(page.getByRole("status")).toContainText("回读验证");
+  expect((await read()).profile.facts[path]?.state).toBe("confirmed");
+  await page
+    .getByRole("button", { name: "导入简历 / 资料", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText("导入完成");
+  expect((await read()).profile.records).toEqual(before.profile.records);
+  expect((await read()).profile.facts[path]?.state).toBe("confirmed");
+  await page.reload();
+  await page.getByRole("button", { name: "我的资料", exact: true }).click();
+  await expect(page.locator(`[id="${path}"]`)).toHaveValue(/多协议请求处理/);
+}
+test("structured resume records can be edited, confirmed and reimported without duplicates", async () => {
+  const page = await launch();
+  await verifyStructuredImport(page);
+  const profile = (await page.evaluate(() =>
+    window.jobagent.invoke({ method: "profile" }),
+  )) as ProfileView;
+  const project = profile.profile.records.project[0]!;
+  await page.evaluate(
+    ({ path, value }) =>
+      window.jobagent.invoke({ method: "saveFact", path, value }),
+    { path: `project.${project}.name`, value: "多协议通信测试框架" },
+  );
+  const snap = (await page.evaluate(() =>
+    window.jobagent.invoke({ method: "snapshot" }),
+  )) as Snapshot;
+  const target = snap.rows.find((row) => row.job.jobCode === "TEST-002")!;
+  await page.evaluate(
+    ({ id, url }) =>
+      window.jobagent.invoke({ method: "channel", jobId: id, url }),
+    { id: target.job.id, url: appUrl + "/test/resume-form" },
+  );
+  await page.getByRole("button", { name: "投递工作台", exact: true }).click();
+  const row = page
+    .getByRole("button", { name: "客户端导入测试 客户端导入岗位" })
+    .locator("xpath=ancestor::tr");
+  await row.getByRole("button", { name: "辅助填写", exact: true }).click();
+  await page
+    .getByRole("button", { name: "我已核对，继续", exact: true })
+    .click();
+  const choices = page.getByRole("combobox", { name: "将网页经历绑定到" });
+  await expect(choices).toContainText("多协议通信测试框架 · 2025-07 — 2025-11");
+  await page.getByRole("button", { name: "确认绑定", exact: true }).click();
+  await expect.poll(() => lastProjectName).toBe("多协议通信测试框架");
+  await stopClient();
+});
 test("packaged app starts with Finder-like PATH, core resources and SQLite", async () => {
   test.skip(
     !process.env.JOBAGENT_TEST_PACKAGE,
     "需先构建 .app，再启用显式安装包验收",
   );
+  const existing = new Store(home);
+  const expectedIds = existing
+    .jobs()
+    .map((job) => job.id)
+    .sort();
+  existing.close();
   const page = await launch(true);
   const snap = (await page.evaluate(() =>
     window.jobagent.invoke({ method: "snapshot" }),
   )) as Snapshot;
   expect(snap.dataDir).toBe(home);
-  expect(snap.rows).toHaveLength(2);
+  expect(snap.rows.map((row) => row.job.id).sort()).toEqual(expectedIds);
   const profile = (await page.evaluate(() =>
     window.jobagent.invoke({ method: "profile" }),
   )) as { fields: unknown[] };
@@ -559,5 +681,6 @@ test("packaged app starts with Finder-like PATH, core resources and SQLite", asy
   expect(settings.schedule.installed).toBe(false);
   expect(await client!.evaluate(({ app }) => app.isPackaged)).toBe(true);
   await verifyPDFImport(page, "packaged");
+  await verifyStructuredImport(page);
   await stopClient();
 });

@@ -8,7 +8,7 @@ import {
   type Perform,
   type Send,
 } from "./shared.js";
-import type { Snapshot, Row } from "../contract.js";
+import type { Snapshot, Row, ProfileView } from "../contract.js";
 import type { Answer, Question } from "../../src/interaction.js";
 import type { Value } from "../../src/types.js";
 export function Drawer({
@@ -46,6 +46,46 @@ export function Drawer({
     };
   }, [row?.job.id, row?.application?.revision]);
   const q = run?.request;
+  const [recordLabels, setRecordLabels] = useState<Record<string, string>>({});
+  const [recordLabelsError, setRecordLabelsError] = useState(false);
+  useEffect(() => {
+    let current = true;
+    setRecordLabels({});
+    setRecordLabelsError(false);
+    if (q?.issues?.some((issue) => issue.records?.length)) {
+      void api
+        .invoke({ method: "profile" })
+        .then((result) => {
+          if (!current) return;
+          const { profile } = result as ProfileView;
+          const labels: Record<string, string> = {};
+          for (const kind of ["education", "experience", "project"] as const) {
+            for (const id of profile.records[kind]) {
+              const base = `${kind}.${id}`;
+              const value = (field: string) =>
+                profile.facts[`${base}.${field}`]?.value;
+              const title =
+                value(
+                  kind === "education"
+                    ? "school"
+                    : kind === "experience"
+                      ? "company"
+                      : "name",
+                ) || id;
+              labels[base] =
+                `${title} · ${value("startDate") || "起始时间待补充"} — ${value("endDate") || "结束时间待补充"}`;
+            }
+          }
+          setRecordLabels(labels);
+        })
+        .catch(() => {
+          if (current) setRecordLabelsError(true);
+        });
+    }
+    return () => {
+      current = false;
+    };
+  }, [q?.requestId]);
   const active = !!run && snapshot.busy;
   const send = (answer: Answer) =>
     run && q
@@ -167,6 +207,11 @@ export function Drawer({
             )}
             {q.kind === "review" && (
               <>
+                {recordLabelsError && (
+                  <p className="error-text">
+                    无法读取经历名称，请到“我的资料”检查资料连接后重试。
+                  </p>
+                )}
                 <div className="issues">
                   {q.issues?.map((issue, index) => (
                     <IssueForm
@@ -174,6 +219,7 @@ export function Drawer({
                       issue={issue}
                       index={index}
                       paths={q.paths || []}
+                      recordLabels={recordLabels}
                       disabled={blocked}
                       send={send}
                     />
@@ -454,12 +500,14 @@ function IssueForm({
   issue,
   index,
   paths,
+  recordLabels,
   disabled,
   send,
 }: {
   issue: NonNullable<Question["issues"]>[number];
   index: number;
   paths: string[];
+  recordLabels: Record<string, string>;
   disabled: boolean;
   send: (a: Answer) => Promise<unknown>;
 }) {
@@ -599,7 +647,7 @@ function IssueForm({
             >
               {issue.records.map((r) => (
                 <option key={r} value={r}>
-                  {r}
+                  {recordLabels[`${issue.recordKind}.${r}`] || r}
                 </option>
               ))}
             </select>

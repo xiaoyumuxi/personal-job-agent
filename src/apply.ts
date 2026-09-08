@@ -1,4 +1,9 @@
-import { ProfileSchema, type Profile, type Fact } from "./types.js";
+import {
+  ProfileSchema,
+  isRecordKind,
+  type Profile,
+  type Fact,
+} from "./types.js";
 import { type Config, loadSites, findSite, mappings } from "./config.js";
 import { Store, now } from "./db.js";
 import { loadProfile, saveProfile, confirmFact } from "./profile.js";
@@ -193,11 +198,12 @@ export async function applyJob(
             !i.field.sensitive &&
             (!i.field.record || (!!i.path && !i.path.includes("$"))) &&
             !["file", "manual"].includes(i.field.type),
-          records:
-            i.field?.repeatKind === "education" ||
-            i.field?.repeatKind === "experience"
-              ? profile.records[i.field.repeatKind]
-              : undefined,
+          records: isRecordKind(i.field?.repeatKind)
+            ? profile.records[i.field.repeatKind]
+            : undefined,
+          recordKind: isRecordKind(i.field?.repeatKind)
+            ? i.field.repeatKind
+            : undefined,
         })),
       };
       const action = await io.request(question);
@@ -249,7 +255,7 @@ export async function applyJob(
       } else if (action.action === "bind" && issue?.field?.record) {
         const kind = issue.field.repeatKind;
         if (
-          (kind !== "education" && kind !== "experience") ||
+          !isRecordKind(kind) ||
           !profile.records[kind].includes(action.record)
         )
           throw new Error("资料记录 ID 不存在");
