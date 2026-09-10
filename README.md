@@ -93,11 +93,13 @@ npm run desktop:dev
 
 ## 构建 macOS 应用
 
-GitHub Actions 会在推送 `main`、版本标签和 PR 时分别构建 Apple Silicon 与 Intel App，运行类型、单元、浏览器及安装包测试。可从 [Build macOS App](https://github.com/xiaoyumuxi/personal-job-agent/actions/workflows/build-app.yml) 成功运行的 **Artifacts** 下载 App ZIP；构建产物保留 14 天。触发方式、校验与下载说明见 [App CI 文档](docs/app-ci.md)。
+GitHub Actions 会在推送 `main`、版本标签和 PR 时分别构建 Apple Silicon 与 Intel App，运行类型、单元、浏览器及安装包测试。可从 [Build macOS App](https://github.com/xiaoyumuxi/personal-job-agent/actions/workflows/build-app.yml) 成功运行的 **Artifacts** 直接下载 DMG，双击后将 App 拖到“应用程序”；构建产物保留 14 天。触发方式、校验与下载说明见 [App CI 文档](docs/app-ci.md)。
 
 ```bash
 npm run desktop:package
 ```
+
+需要 DMG 安装包时运行 `npm run desktop:dmg`，输出到 `release/artifacts/JobAgent-macOS-<架构>.dmg`。
 
 按本机架构输出应用：
 

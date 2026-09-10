@@ -4,22 +4,22 @@
 
 ## 构建与验证
 
-| 产物                   | 构建环境                           | 适用芯片      |
-| ---------------------- | ---------------------------------- | ------------- |
-| `JobAgent-macOS-arm64` | `macos-15`，原生 arm64 Node 24     | Apple Silicon |
-| `JobAgent-macOS-x64`   | `macos-15-intel`，原生 x64 Node 24 | Intel         |
+| 产物                       | 构建环境                           | 适用芯片      |
+| -------------------------- | ---------------------------------- | ------------- |
+| `JobAgent-macOS-arm64.dmg` | `macos-15`，原生 arm64 Node 24     | Apple Silicon |
+| `JobAgent-macOS-x64.dmg`   | `macos-15-intel`，原生 x64 Node 24 | Intel         |
 
 两个任务分别安装锁定依赖、运行类型检查和单元测试、编译 Swift 辅助程序、构建 renderer 与 Electron App。CI 检查 Electron、内置 Node、Keychain 与 OCR 辅助程序的 Mach-O 架构，执行内置 Node 的 SQLite 检查，并检查主要运行资源。
 
-浏览器与 Electron 测试依次执行，使用本地招聘表单、隔离数据目录、临时 Keychain 和测试用飞书 CLI。App 使用 `ditto` 压缩，保留可执行权限、框架符号链接与包元数据；安装包测试直接启动再次解压的 App，验证分发文件中的运行资源。只有全部验证通过才上传 App。
+浏览器与 Electron 测试依次执行，使用本地招聘表单、隔离数据目录、临时 Keychain 和测试用飞书 CLI。[create-dmg.mjs](../scripts/create-dmg.mjs) 用 `ditto` 保留 App 的可执行权限、框架符号链接与包元数据，再用 macOS 自带 `hdiutil` 创建压缩 DMG，内含 `JobAgent.app` 和“应用程序”快捷入口。安装包测试启动从 DMG 复制出的 App，验证分发文件中的运行资源。只有全部验证通过才上传 DMG。
 
 任务使用只读仓库权限，GitHub 官方 Actions 固定到提交 SHA，不需要签名证书或业务账户密钥。新提交会取消同一分支仍在运行的旧构建；单个架构失败不会取消另一个架构的验证。
 
 ## 下载与打开
 
-1. 打开一次成功的 workflow 运行，在 **Artifacts** 下载与芯片匹配的产物；下载需要登录 GitHub。
-2. 解开 artifact 外层压缩包，得到 `JobAgent-macOS-<架构>.zip` 和 `.zip.sha256` 校验文件。可在同一目录运行 `shasum -a 256 -c JobAgent-macOS-arm64.zip.sha256`（Intel 替换为 `x64`）。
-3. 解开内部 App ZIP，将 `JobAgent.app` 拖到“应用程序”。使用前安装 Google Chrome；飞书 CLI 为可选外部依赖。App 已内置 Node 和辅助程序，使用构建产物不需要另装 Node 或 Apple Command Line Tools。
+1. 打开一次成功的 workflow 运行，在 **Artifacts** 或构建摘要中直接下载与芯片匹配的 `.dmg`；下载需要登录 GitHub。上传使用 `archive: false`，不会再包一层 ZIP。
+2. 双击 DMG，将 `JobAgent.app` 拖到旁边的“应用程序”快捷入口，然后从“应用程序”打开。使用前安装 Google Chrome；飞书 CLI 为可选外部依赖。App 已内置 Node 和辅助程序，使用构建产物不需要另装 Node 或 Apple Command Line Tools。
+3. 如需校验，可另行下载 `.dmg.sha256`，放在 DMG 同一目录，运行 `shasum -a 256 -c JobAgent-macOS-arm64.dmg.sha256`（Intel 替换为 `x64`）。
 
 构建产物保留 14 天，过期后可以手动重新运行。本工作流上传 Actions artifacts，不创建 GitHub Release，也没有自动更新机制。
 
@@ -34,8 +34,11 @@ npm ci
 npm run typecheck
 npm test
 npm run desktop:package
+node scripts/create-dmg.mjs
 npm run test:browser
 JOBAGENT_TEST_PACKAGE=1 npm run test:desktop
 ```
 
 本地测试默认使用系统 Keychain，但每项测试使用独立的测试数据目录与对应账户命名。CI 创建临时 Keychain 的步骤仅面向可丢弃的 GitHub 托管 runner，不应直接用于替换个人电脑的默认 Keychain。
+
+仅构建 DMG 可运行 `npm run desktop:dmg`，按本机架构输出 `release/artifacts/JobAgent-macOS-<架构>.dmg` 及 SHA-256 文件。

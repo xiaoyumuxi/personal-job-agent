@@ -100,45 +100,55 @@ jobs:
       - name: Browser and renderer tests
         run: npm run test:browser
 
-      - name: Archive App and extract for distribution tests
+      - name: Create DMG and copy App for distribution tests
         env:
-          APP_PATH: release/JobAgent-darwin-${{ matrix.arch }}/JobAgent.app
-          ARCHIVE_NAME: JobAgent-macOS-${{ matrix.arch }}
+          DMG_PATH: release/artifacts/JobAgent-macOS-${{ matrix.arch }}.dmg
         run: |
-          mkdir -p release/artifacts "$RUNNER_TEMP/jobagent-unpacked"
-          # Preserve executable permissions, framework symlinks and bundle metadata.
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "release/artifacts/$ARCHIVE_NAME.zip"
-          (cd release/artifacts && shasum -a 256 "$ARCHIVE_NAME.zip" > "$ARCHIVE_NAME.zip.sha256")
-          ditto -x -k "release/artifacts/$ARCHIVE_NAME.zip" "$RUNNER_TEMP/jobagent-unpacked"
+          node scripts/create-dmg.mjs
+          mount_dir="$RUNNER_TEMP/jobagent-dmg-mounted"
+          mkdir -p "$mount_dir" "$RUNNER_TEMP/jobagent-unpacked"
+          hdiutil attach "$DMG_PATH" -nobrowse -readonly -mountpoint "$mount_dir"
+          trap 'hdiutil detach "$mount_dir"' EXIT
+          ditto "$mount_dir/JobAgent.app" "$RUNNER_TEMP/jobagent-unpacked/JobAgent.app"
+          test -L "$mount_dir/Applications"
 
-      - name: Electron and extracted App tests
+      - name: Electron and App copied from DMG tests
         env:
           JOBAGENT_TEST_PACKAGE: "1"
           JOBAGENT_TEST_PACKAGE_DIR: ${{ runner.temp }}/jobagent-unpacked/JobAgent.app
         run: npm run test:desktop
 
-      - name: Upload verified App
+      - name: Upload DMG directly
         id: artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: JobAgent-macOS-${{ matrix.arch }}
-          path: release/artifacts/*
+          path: release/artifacts/JobAgent-macOS-${{ matrix.arch }}.dmg
+          archive: false
           if-no-files-found: error
           retention-days: 14
-          compression-level: 0
+
+      - name: Upload DMG checksum
+        id: checksum
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: release/artifacts/JobAgent-macOS-${{ matrix.arch }}.dmg.sha256
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Build summary
         env:
           ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+          CHECKSUM_URL: ${{ steps.checksum.outputs.artifact-url }}
         run: |
           {
             echo "### JobAgent macOS ${{ matrix.arch }}"
             echo ""
             echo "Commit: $GITHUB_SHA"
             echo ""
-            echo "[Download App ZIP and SHA-256 checksum]($ARTIFACT_URL)"
+            echo "[Download DMG]($ARTIFACT_URL) · [SHA-256 checksum]($CHECKSUM_URL)"
             echo ""
-            echo "Typecheck, unit, browser, Electron and extracted App tests passed."
+            echo "Typecheck, unit, browser, Electron and App copied from DMG tests passed."
             echo ""
             echo "This build has no Developer ID signing or Apple notarization."
           } >> "$GITHUB_STEP_SUMMARY"
