@@ -99,7 +99,14 @@ describe("本地数据与隐私", () => {
   it("只允许 HTTP(S) 目标，拒绝内嵌凭证", () => {
     expect(() => safeUrl("javascript:alert(1)")).toThrow();
     expect(() => safeUrl("https://u:password@example.com")).toThrow();
-    expect(ROOT).toContain("/agent/");
+  });
+  it("资源根目录可读取项目清单与站点规则，不依赖检出目录名称", () => {
+    expect(
+      JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).name,
+    ).toBe("personal-job-agent");
+    expect(statSync(join(ROOT, "sites/generic.example.json")).isFile()).toBe(
+      true,
+    );
   });
 });
 describe("岗位导入", () => {
