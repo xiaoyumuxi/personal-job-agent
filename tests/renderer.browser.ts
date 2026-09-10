@@ -10,6 +10,10 @@ import type {
   Command,
 } from "../desktop/contract.js";
 import { ConfigSchema } from "../src/config.js";
+import type {
+  DiscoveryPreview,
+  DiscoveryBatch,
+} from "../src/discovery/types.js";
 
 const rows: Row[] = [
   "待审核公司",
@@ -600,4 +604,180 @@ test("empty onboarding, dialog keyboard behavior and responsive pages do not ove
     if (width === 1280 || width === 390)
       await screenshot(page, `task-${width}.png`);
   }
+});
+
+test("official discovery previews independent consent, keeps drafts and wires explicit selections", async ({
+  page,
+}) => {
+  await launch(page);
+  await page.evaluate(() => {
+    const original = window.jobagent.invoke;
+    let preview: DiscoveryPreview | undefined;
+    let batch: DiscoveryBatch | null = null;
+    window.jobagent.invoke = async (c) => {
+      if (
+        ![
+          "discoveryView",
+          "discoveryPreview",
+          "discoveryDecision",
+          "discoveryOpen",
+        ].includes(c.method) &&
+        !(c.method === "start" && c.operation === "discover")
+      )
+        return original(c);
+      window.rendererTest.calls.push(c);
+      if (c.method === "discoveryView") return structuredClone(batch);
+      if (c.method === "discoveryPreview") {
+        preview = {
+          id: "preview-test",
+          expiresAt: Date.now() + 60000,
+          profile: window.rendererTest.profiles[0]!.selected,
+          preferences: c.preferences,
+          facts: [{ id: "F1", label: "技能", value: "Python 后端服务开发" }],
+          omitted: 3,
+          ...(c.preferences.mode === "ai"
+            ? {
+                model: {
+                  name: "fixture",
+                  endpoint: "https://model.example.invalid/chat",
+                },
+              }
+            : {}),
+        };
+        return structuredClone(preview);
+      }
+      if (c.method === "start" && preview) {
+        batch = {
+          id: "batch-test",
+          at: new Date().toISOString(),
+          profile: preview.profile,
+          preferences: preview.preferences,
+          facts: preview.facts,
+          status: "completed",
+          issues: [],
+          stale: false,
+          results: [
+            {
+              id: "result-test",
+              job: {
+                source: "bytedance",
+                externalId: "7682636037198694709",
+                url: "https://jobs.bytedance.com/campus/position/7682636037198694709/detail",
+                title: "后端工程师 · 合约测试",
+                location: "深圳",
+                metadata: "2027届校园招聘",
+                kind: "campus",
+                description: "开发服务",
+                requirements: "熟悉 Python",
+                bonus: "",
+                fetchedAt: new Date().toISOString(),
+              },
+              grade: "consider",
+              analysis: "ai",
+              rules: [],
+              assessment: {
+                grade: "consider",
+                summary: "有相关经验，毕业要求仍需确认",
+                evidence: [
+                  {
+                    kind: "match",
+                    reason: "技能相关",
+                    jdQuote: "熟悉 Python",
+                    factId: "F1",
+                    factQuote: "Python",
+                  },
+                ],
+              },
+            },
+          ],
+        };
+        window.rendererTest.snapshot.run = {
+          runId: batch.id,
+          operation: "discover",
+          state: "COMPLETED",
+          step: "已保存 1 个岗位及其判断依据",
+          at: new Date().toISOString(),
+        };
+        window.rendererTest.emit();
+        return true;
+      }
+      if (c.method === "discoveryDecision" && batch) {
+        const item = batch.results[0]!;
+        item.decision = c.decision;
+        if (c.decision === "keep") item.jobId = "job-1";
+        return structuredClone(item);
+      }
+      return true;
+    };
+  });
+  await page.getByRole("button", { name: "官网找岗位", exact: true }).click();
+  await page.getByLabel("岗位关键词", { exact: true }).fill("后端");
+  await page.getByLabel("意向城市", { exact: true }).fill("深圳，上海");
+  await page.getByRole("button", { name: "设置与连接", exact: true }).click();
+  await page.getByRole("button", { name: "投递工作台", exact: true }).click();
+  await page.getByRole("button", { name: "官网找岗位", exact: true }).click();
+  await expect(page.getByLabel("岗位关键词", { exact: true })).toHaveValue(
+    "后端",
+  );
+  await page.getByLabel("判断方式", { exact: true }).selectOption("ai");
+  await page.getByRole("button", { name: "预览并准备启动" }).click();
+  await expect(
+    page.getByRole("heading", { name: "确认这次交给 AI 的资料" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "开始读取与筛选" }),
+  ).toBeDisabled();
+  await page
+    .getByRole("checkbox", {
+      name: "我已核对以上内容，同意本次发送到这个模型服务",
+    })
+    .check();
+  await page.getByRole("button", { name: "开始读取与筛选" }).click();
+  await expect(
+    page.getByRole("heading", { name: "已读取 1 个岗位" }),
+  ).toBeVisible();
+  await expect(page.getByRole("region", { name: "岗位判断依据" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByText("JD 原文", { exact: true })).toBeVisible();
+  expect(
+    await page.evaluate(() =>
+      window.rendererTest.calls.filter(
+        (c) => c.method === "start" && c.operation === "discover",
+      ),
+    ),
+  ).toEqual([
+    {
+      method: "start",
+      operation: "discover",
+      previewId: "preview-test",
+      cloudConsent: true,
+    },
+  ]);
+  expect(
+    await page.evaluate(() =>
+      window.rendererTest.calls.some((c) => c.method === "discoveryDecision"),
+    ),
+  ).toBe(false);
+  await page.getByRole("button", { name: "在浏览器查看官网" }).click();
+  expect(
+    await page.evaluate(() =>
+      window.rendererTest.calls.some((c) => c.method === "discoveryOpen"),
+    ),
+  ).toBe(true);
+  for (const width of [1440, 1280, 1024, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    if (width === 1280) await screenshot(page, "07-job-discovery.png");
+  }
+  await page.getByRole("button", { name: "加入工作台", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "前往工作台继续" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "前往工作台继续" }).click();
+  await expect(page.getByRole("button", { name: "返回工作台" })).toBeVisible();
 });

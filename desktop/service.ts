@@ -4,6 +4,10 @@ import {
   renameProfile,
 } from "../src/profile-library.js";
 import { randomUUID } from "node:crypto";
+import {
+  DiscoveryService,
+  type DiscoveryDependencies,
+} from "../src/discovery/service.js";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, join, extname } from "node:path";
 import { Store, attention, now } from "../src/db.js";
@@ -71,6 +75,7 @@ export class DesktopService {
   readonly dir: string;
   readonly store: Store;
   readonly vault: Vault;
+  readonly discovery: DiscoveryService;
   runtime?: Runtime;
   private done?: Promise<void>;
   private auth?: { deviceCode: string; url: string; expiresAt: number };
@@ -84,11 +89,18 @@ export class DesktopService {
     home?: string,
     vault?: Vault,
     private nodePath = process.execPath,
+    discoveryDependencies: DiscoveryDependencies = {},
   ) {
     this.dir = dataDir(home);
     readConfig(this.dir);
     this.store = new Store(this.dir);
     this.vault = vault ?? new KeychainVault(this.dir);
+    this.discovery = new DiscoveryService(
+      this.store,
+      this.vault,
+      this.dir,
+      discoveryDependencies,
+    );
     if (!this.store.getMeta("createdDate"))
       this.store.setMeta("createdDate", localDate());
     const old = this.store.task<RunRecord>("desktop:run");
@@ -343,6 +355,9 @@ export class DesktopService {
         },
       };
     }
+    if (c.method === "discoveryView") return this.discovery.view();
+    if (c.method === "discoveryOpen")
+      return this.discovery.sourceUrl(c.batchId, c.id);
     if (c.method === "start") return this.start(c);
     if (c.method === "answer") {
       if (!this.runtime) throw new Error("任务已结束，回答已过期");
@@ -364,6 +379,10 @@ export class DesktopService {
     }
     return this.write(async () => {
       const config = readConfig(this.dir);
+      if (c.method === "discoveryPreview")
+        return this.discovery.preview(c.profileId, c.preferences);
+      if (c.method === "discoveryDecision")
+        return this.discovery.decide(c.batchId, c.id, c.decision);
       if (c.method === "channel") {
         const job = this.store.job(c.jobId),
           url = safeUrl(c.url);
@@ -518,6 +537,13 @@ export class DesktopService {
   private start(c: Extract<Command, { method: "start" }>) {
     if (this.runtime || this.writing)
       throw new Error("同一时间只能执行一个任务");
+    if (c.operation === "discover" && (!c.previewId || c.jobId || c.profileId))
+      throw new Error("请先预览岗位筛选条件和资料披露范围");
+    if (
+      c.operation !== "discover" &&
+      (c.previewId !== undefined || c.cloudConsent !== undefined)
+    )
+      throw new Error("当前操作不接受岗位发现的启动确认");
     const row = c.jobId
       ? this.snapshot().rows.find((r) => r.job.id === c.jobId)
       : undefined;
@@ -556,6 +582,10 @@ export class DesktopService {
     const config = readConfig(this.dir),
       sites = loadSites(config, this.dir),
       checkpoint = () => r.checkpoint();
+    if (c.operation === "discover") {
+      await this.discovery.run(c.previewId!, c.cloudConsent === true, r);
+      return;
+    }
     if (c.operation === "apply") {
       await applyJob(
         c.jobId!,

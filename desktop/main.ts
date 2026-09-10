@@ -259,6 +259,10 @@ else {
           c.confirmed = true;
         }
         const result = await rpc("command", c);
+        if (c.method === "discoveryOpen") {
+          await shell.openExternal(result);
+          return true;
+        }
         if (c.method === "snapshot") latest = result;
         return result;
       });

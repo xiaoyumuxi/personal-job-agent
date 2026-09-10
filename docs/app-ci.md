@@ -42,3 +42,9 @@ JOBAGENT_TEST_PACKAGE=1 npm run test:desktop
 本地测试默认使用系统 Keychain，但每项测试使用独立的测试数据目录与对应账户命名。CI 创建临时 Keychain 的步骤仅面向可丢弃的 GitHub 托管 runner，不应直接用于替换个人电脑的默认 Keychain。
 
 仅构建 DMG 可运行 `npm run desktop:dmg`，按本机架构输出 `release/artifacts/JobAgent-macOS-<架构>.dmg` 及 SHA-256 文件。
+
+## 2026-09-10 故障核查
+
+早期运行失败是 `tests/core.test.ts` 将仓库路径写死为 `/agent/`，GitHub checkout 的目录名为 `personal-job-agent`。修复改为读取项目真实资源验证根目录，已随 `5c16d97` 推送；后续提交 `81bc2b7` 的[双架构运行 34444509700](https://github.com/xiaoyumuxi/personal-job-agent/actions/runs/34444509700) 完整通过，两个 DMG 与校验文件均上传成功。
+
+官网岗位发现接线增加了已有测试套件中的用例，并检查安装包内 `discovery/service.js` 与 `discovery/sources.js` 资源存在。CI 不访问真实招聘官网、不需要业务模型密钥；真实网页变化不会随机阻断构建。公开官网小范围联调记录见[岗位发现文档](job-discovery.md)。

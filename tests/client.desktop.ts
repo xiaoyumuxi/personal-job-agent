@@ -865,6 +865,17 @@ test("packaged app starts with Finder-like PATH, core resources and SQLite", asy
     window.jobagent.invoke({ method: "profile" }),
   )) as { fields: unknown[] };
   expect(profile.fields.length).toBeGreaterThan(3);
+  await page.getByRole("button", { name: "官网找岗位", exact: true }).click();
+  await page.getByLabel("岗位关键词", { exact: true }).fill("后端");
+  await page.getByRole("button", { name: "预览并准备启动" }).click();
+  await expect(
+    page.getByRole("heading", { name: "确认本次官网读取范围" }),
+  ).toBeVisible();
+  const discoveryState = await page.evaluate(() =>
+    window.jobagent.invoke({ method: "discoveryView" }),
+  );
+  expect(discoveryState).toBeNull(); // Preview alone neither crawls nor calls a model.
+  await page.getByRole("button", { name: "返回投递工作台" }).click();
   await verifyCLIDiscovery(page);
   await page.getByRole("button", { name: "检测连接", exact: true }).click();
   await expect

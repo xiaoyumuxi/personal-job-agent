@@ -63,6 +63,10 @@ export class Runtime implements Interaction {
   private paused?: () => void;
   private pauseWanted = false;
   private cancelled = false;
+  private abortController = new AbortController();
+  get signal() {
+    return this.abortController.signal;
+  }
   private page?: Page;
   constructor(
     private store: Store,
@@ -244,6 +248,7 @@ export class Runtime implements Interaction {
     } else {
       if (this.cancelled) return;
       this.cancelled = true;
+      this.abortController.abort();
       this.record.state = "CANCELLING";
       this.emit("CANCEL_REQUESTED");
       this.pending?.reject(new RunStopped());

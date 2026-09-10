@@ -3,6 +3,7 @@ import {
   type ProfileVersion,
 } from "../src/profile-library.js";
 import { z } from "zod";
+import { PreferencesSchema } from "../src/discovery/types.js";
 import { AnswerSchema } from "../src/interaction.js";
 import { ValueSchema } from "../src/types.js";
 import { ConfigSchema } from "../src/config.js";
@@ -20,6 +21,29 @@ import type {
 } from "../src/application/services.js";
 import type { ProfileImportInfo } from "../src/profile.js";
 export const CommandSchema = z.discriminatedUnion("method", [
+  z.object({ method: z.literal("discoveryView") }).strict(),
+  z
+    .object({
+      method: z.literal("discoveryOpen"),
+      batchId: z.string().uuid(),
+      id: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      method: z.literal("discoveryPreview"),
+      profileId: ProfileIdSchema,
+      preferences: PreferencesSchema,
+    })
+    .strict(),
+  z
+    .object({
+      method: z.literal("discoveryDecision"),
+      batchId: z.string().uuid(),
+      id: z.string().uuid(),
+      decision: z.enum(["keep", "skip"]),
+    })
+    .strict(),
   z
     .object({
       method: z.literal("channel"),
@@ -63,6 +87,7 @@ export const CommandSchema = z.discriminatedUnion("method", [
     .object({
       method: z.literal("start"),
       operation: z.enum([
+        "discover",
         "apply",
         "login",
         "open",
@@ -78,6 +103,8 @@ export const CommandSchema = z.discriminatedUnion("method", [
       ]),
       jobId: z.string().uuid().optional(),
       profileId: ProfileIdSchema.optional(),
+      previewId: z.string().uuid().optional(),
+      cloudConsent: z.boolean().optional(),
     })
     .strict(),
   z
@@ -186,7 +213,13 @@ export interface ProfileView {
 export interface SettingsView {
   home: string;
   chromeProfile: string;
-  sites: { id: string; name: string; fill: boolean; login: boolean; track: boolean }[];
+  sites: {
+    id: string;
+    name: string;
+    fill: boolean;
+    login: boolean;
+    track: boolean;
+  }[];
   modelConnection: { status: string; at?: string };
   config: z.infer<typeof ConfigSchema>;
   doctor?: Awaited<ReturnType<typeof doctor>>;

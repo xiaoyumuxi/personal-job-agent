@@ -93,6 +93,8 @@ jobs:
             'import { DatabaseSync } from "node:sqlite"; const db = new DatabaseSync(":memory:"); db.close();'
           test -f "$APP_PATH/Contents/Resources/app/desktop-build/index.html"
           test -f "$APP_PATH/Contents/Resources/app/dist/desktop/worker.js"
+          test -f "$APP_PATH/Contents/Resources/app/dist/src/discovery/service.js"
+          test -f "$APP_PATH/Contents/Resources/app/dist/src/discovery/sources.js"
           test ! -d "$APP_PATH/Contents/Resources/app/.github"
           test ! -d "$APP_PATH/Contents/Resources/app/.idea"
           test ! -d "$APP_PATH/Contents/Resources/app/outputs"

@@ -509,6 +509,8 @@ export function SettingsPage({
         </button>
         <p className="hint">
           未配置模型也能使用现有规则匹配与人工补充。已有密钥不会回显。
+          官网岗位的 AI
+          筛选复用这里的模型与密钥；资料值须在“官网找岗位”的启动预览中单独确认披露，不受上面的字段映射勾选授权。
         </p>
       </section>
       <section className="panel" hidden={category !== "schedule"}>

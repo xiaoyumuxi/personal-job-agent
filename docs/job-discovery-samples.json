@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-09-10T06:50:48Z",
+  "method": "read_only_browser_sample",
+  "purpose": "官网采集与JD结构化的设计样本，未按用户简历匹配",
+  "personalMatchPerformed": false,
+  "siteAdapterImplemented": false,
+  "samples": [
+    {
+      "sourceId": "tencent-careers",
+      "externalJobId": "2078028283043299328",
+      "detailUrl": "https://careers.tencent.com/jobdesc.html?postId=2078028283043299328",
+      "listUrl": "https://careers.tencent.com/search.html?pcid=40001",
+      "company": "腾讯",
+      "title": "光子 AI-大模型质量工程师-游戏方向",
+      "locations": ["深圳"],
+      "updatedDateOnPage": "2026-09-10",
+      "salary": null,
+      "deadline": null,
+      "responsibilitySummary": "负责游戏场景的大模型质量保障、专项测试、问题定位与测试自动化。",
+      "requirements": {
+        "minimumEducation": "bachelor",
+        "experienceYearsInDetail": 3,
+        "experienceYearsInHeader": 2,
+        "coreAreas": ["测试开发", "大模型测试", "性能与稳定性测试"]
+      },
+      "conflicts": [
+        {
+          "field": "experienceYears",
+          "headerEvidence": "两年以上工作经验",
+          "detailEvidence": "3 年以上测试开发经验",
+          "resolution": "保留冲突，正文作为更具体的条件说明；不输出无冲突的确定匹配"
+        }
+      ],
+      "observation": {
+        "foundInOfficialList": true,
+        "detailReadable": true,
+        "applyControlVisible": true,
+        "applicationFlowVerified": false
+      }
+    },
+    {
+      "sourceId": "bytedance-campus",
+      "externalJobId": "7682636037198694709",
+      "publicJobCode": "A177077",
+      "detailUrl": "https://jobs.bytedance.com/campus/position/7682636037198694709/detail",
+      "listUrl": "https://jobs.bytedance.com/campus/position",
+      "company": "字节跳动",
+      "title": "大数据AI工程师 - 数据BP",
+      "locations": ["北京", "杭州", "上海", "深圳"],
+      "recruitmentProgram": "2027届校园招聘",
+      "employmentType": "graduate_full_time",
+      "updatedDateOnPage": null,
+      "salary": null,
+      "deadline": null,
+      "responsibilitySummary": "建设数据流水线、开发与优化数据任务，并将大模型能力用于数据工作和业务应用。",
+      "requirements": {
+        "graduationCohort": 2027,
+        "minimumEducation": "bachelor",
+        "programmingRequirement": "掌握至少一种主要编程语言",
+        "coreAreas": ["计算机基础", "编程", "数据开发兴趣"],
+        "preferences": [
+          "相关专业",
+          "数据领域研究或开源贡献",
+          "AI编程工具实践",
+          "大模型应用知识"
+        ]
+      },
+      "evidenceSnippet": "计算机、数学、大数据等相关专业优先",
+      "conflicts": [],
+      "observation": {
+        "foundInOfficialList": true,
+        "detailReadable": true,
+        "applyControlVisible": true,
+        "applicationFlowVerified": false
+      }
+    },
+    {
+      "sourceId": "bytedance-campus",
+      "externalJobId": "7633857383984826629",
+      "publicJobCode": "A144514B",
+      "detailUrl": "https://jobs.bytedance.com/campus/position/7633857383984826629/detail",
+      "listUrl": "https://jobs.bytedance.com/campus/position",
+      "company": "字节跳动",
+      "title": "平台研发实习生-App Infra",
+      "locations": ["深圳"],
+      "recruitmentProgram": "ByteIntern",
+      "employmentType": "internship",
+      "updatedDateOnPage": null,
+      "salary": null,
+      "deadline": null,
+      "responsibilitySummary": "参与服务端与端云协同开发，并探索用 Agent 改进研发迭代流程。",
+      "requirements": {
+        "graduationCohort": 2027,
+        "graduationWindow": {
+          "fromMonth": "2026-09",
+          "throughMonth": "2027-08"
+        },
+        "minimumEducation": "master",
+        "studentStatusRequired": true,
+        "oneOfLanguages": ["C++", "Go", "Python"],
+        "coreAreas": ["后端开发", "MySQL与Redis基础"],
+        "preferences": ["Agent实践", "本地模型部署或推理优化", "分布式系统项目"]
+      },
+      "evidenceSnippet": "2027届硕士及以上学位在读",
+      "conflicts": [],
+      "observation": {
+        "foundInOfficialList": true,
+        "detailReadable": true,
+        "applyControlVisible": true,
+        "applicationFlowVerified": false
+      }
+    }
+  ]
+}

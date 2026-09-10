@@ -18,6 +18,7 @@ export function Workbench({
   refresh,
   settings,
   profile,
+  discover,
 }: {
   snapshot: Snapshot;
   busy: boolean;
@@ -27,6 +28,7 @@ export function Workbench({
   refresh: () => unknown;
   settings: () => void;
   profile: () => void;
+  discover: () => void;
 }) {
   const [query, setQuery] = useState(""),
     [filter, setFilter] = useState<JobFilter>("all");
@@ -53,9 +55,14 @@ export function Workbench({
           <h1>投递工作台</h1>
           <p>先处理需要你接管的事项，再继续下一条申请。</p>
         </div>
-        <button className="primary" onClick={importJobs} disabled={busy}>
-          ＋ 导入岗位
-        </button>
+        <div className="actions">
+          <button className="primary" onClick={discover}>
+            官网找岗位
+          </button>
+          <button onClick={importJobs} disabled={busy}>
+            ＋ 导入岗位
+          </button>
+        </div>
       </header>
       {attentionCount > 0 && (
         <section className="action-queue" aria-label="待我接管">

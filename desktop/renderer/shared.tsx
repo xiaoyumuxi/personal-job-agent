@@ -42,6 +42,7 @@ const words: Record<string, string> = {
   missing: "缺失",
   conflict: "有冲突",
   apply: "辅助填写",
+  discover: "官网岗位发现与筛选",
   open: "查看官网",
   login: "官网登录",
   track: "查询进度",

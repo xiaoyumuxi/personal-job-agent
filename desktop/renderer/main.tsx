@@ -10,6 +10,7 @@ import { createRoot } from "react-dom/client";
 import type { Command, Snapshot, FileKind } from "../contract.js";
 import { api, label, Badge } from "./shared.js";
 import { Workbench } from "./Workbench.js";
+import { DiscoveryPage } from "./DiscoveryPage.js";
 import { TaskWorkspace } from "./TaskWorkspace.js";
 import { ProfilePage } from "./ProfilePage.js";
 import { SettingsPage } from "./SettingsPage.js";
@@ -38,6 +39,12 @@ function App() {
     if (next === "work") setSelected(undefined);
   };
   const select = (id: string) => {
+    if (id === "global" && snapshot?.run?.operation === "discover")
+      id = "discover";
+    if (id === "discover")
+      setVisited((pages) =>
+        pages.includes("discover") ? pages : [...pages, "discover"],
+      );
     if (page === "work" && !selected) {
       workScroll.current = window.scrollY;
       returnFocus.current = profilePick
@@ -216,9 +223,26 @@ function App() {
                 refresh={() => command({ method: "snapshot" })}
                 settings={() => navigate("settings")}
                 profile={() => navigate("profile")}
+                discover={() => select("discover")}
               />
             </div>
-            {page === "work" && selected && (
+            {visited.includes("discover") && (
+              <div hidden={page !== "work" || selected !== "discover"}>
+                <DiscoveryPage
+                  active={page === "work" && selected === "discover"}
+                  snapshot={snapshot}
+                  busy={busy}
+                  pending={pending}
+                  perform={perform}
+                  command={command}
+                  drafts={draftCounts}
+                  close={closeTask}
+                  openJob={select}
+                  settings={() => navigate("settings")}
+                />
+              </div>
+            )}
+            {page === "work" && selected && selected !== "discover" && (
               <TaskWorkspace
                 key={selected}
                 snapshot={snapshot}
