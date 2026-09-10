@@ -83,15 +83,17 @@ npm run desktop:dev
 ### 第一次使用
 
 1. **检测环境**：在“设置与连接”检查 Chrome 和数据目录。曾使用自定义 CLI 数据目录的用户，先选择“连接现有数据目录”。
-2. **确认资料**：在“我的资料”导入简历，检查解析结果，补全并确认各项资料。可参考 [资料模板](examples/profile.template.json)。
+2. **确认资料**：在“简历与资料”导入简历，检查解析结果，补全并确认各项资料。可参考 [资料模板](examples/profile.template.json)。
 3. **导入岗位**：在“投递工作台”导入岗位文件。可参考 [表格格式](examples/jobs.csv)，导入本身不会启动申请。
-4. **启动填写**：选择一个岗位，核对目标网站和本次披露范围。登录、资料补充和暂停恢复均在任务详情抽屉中处理。
+4. **启动填写**：选择一个岗位和简历版本，核对目标网站和本次披露范围。登录、资料补充和暂停恢复均在独立任务工作区中处理。
 5. **审核与提交**：前往官网核对表单，由本人点击最终提交，再返回客户端检查回执。本人自述提交与官网回执确认分别记录。
 6. **跟踪与同步**：配置站点查询规则及飞书连接后，查询进度或同步飞书。每日查询需本人预览并安装 launchd 调度。
 
 完整操作、窗口关闭与退出行为见 [客户端指南](docs/desktop.md)。
 
 ## 构建 macOS 应用
+
+GitHub Actions 会在推送 `main`、版本标签和 PR 时分别构建 Apple Silicon 与 Intel App，运行类型、单元、浏览器及安装包测试。可从 [Build macOS App](https://github.com/xiaoyumuxi/personal-job-agent/actions/workflows/build-app.yml) 成功运行的 **Artifacts** 下载 App ZIP；构建产物保留 14 天。触发方式、校验与下载说明见 [App CI 文档](docs/app-ci.md)。
 
 ```bash
 npm run desktop:package
@@ -106,7 +108,7 @@ release/JobAgent-darwin-x64/JobAgent.app    # Intel，尚未实机验收
 
 构建产物包含独立 Node 运行时、Keychain 与本地 OCR 辅助程序；日常使用不需要打开终端。Chrome 和飞书 CLI 仍为外部依赖。打开设置页会自动查找、验证并保存飞书 CLI 的绝对路径（含 Homebrew、nvm 安装），也支持重新查找和手动选择；本机程序可用与飞书授权、目标表权限分别展示。
 
-目前提供本机源码构建流程，没有 Developer ID 签名、Apple 公证或自动更新。打包应用在隔离测试目录下通过了启动验证；Finder 的常规打开流程仍未完成验收。构建资源与验证范围见 [客户端文档](docs/desktop.md) 和 [桌面验收记录](docs/desktop-verification.md)。
+源码构建和 CI 产物目前均没有 Developer ID 签名、Apple 公证或自动更新。打包应用在隔离测试目录下通过了启动验证；Finder 的常规打开流程仍未完成验收。构建资源与验证范围见 [客户端文档](docs/desktop.md) 和 [桌面验收记录](docs/desktop-verification.md)。
 
 ## CLI 使用
 

@@ -35,6 +35,7 @@ const words: Record<string, string> = {
   CANCELLED: "已停止",
   COMPLETED: "任务结束",
   FAILED: "执行失败",
+  CHECK_FAILED: "验证未完成",
   INTERRUPTED: "上次运行已中断",
   confirmed: "已确认",
   pending: "待确认",

@@ -35,7 +35,9 @@ import {
   checkModel,
   executable,
   resolveFeishuCLI,
+  checkFeishuAuth,
   type FeishuCLICheck,
+  type FeishuAuthCheck,
 } from "../src/application/services.js";
 import { probeCLI } from "../src/feishu/discovery.js";
 import { configureTemplateViews } from "../src/feishu/template.js";
@@ -75,6 +77,8 @@ export class DesktopService {
   private writing = false;
   private cliDiscovery?: Promise<FeishuCLICheck>;
   private checkedCLI?: string;
+  private authCheck?: Promise<FeishuAuthCheck>;
+  private checkedAuthCLI?: string;
   constructor(
     private notify: () => void,
     home?: string,
@@ -254,6 +258,25 @@ export class DesktopService {
     });
     return this.cliDiscovery;
   }
+  private checkSavedFeishuAuth(refresh = false): Promise<FeishuAuthCheck> {
+    if (this.authCheck) return this.authCheck;
+    const config = readConfig(this.dir);
+    const previous = this.store.getMeta<FeishuAuthCheck>("feishuAuth");
+    if (
+      !refresh &&
+      this.checkedAuthCLI === config.feishu.cli &&
+      previous?.configuredPath === config.feishu.cli
+    )
+      return Promise.resolve(previous);
+    this.authCheck = this.write(async () => {
+      const result = await checkFeishuAuth(this.store, config);
+      this.checkedAuthCLI = config.feishu.cli;
+      return result;
+    }).finally(() => {
+      this.authCheck = undefined;
+    });
+    return this.authCheck;
+  }
   async handle(raw: unknown): Promise<unknown> {
     const c = CommandSchema.parse(raw);
     if (c.method === "snapshot") return this.snapshot();
@@ -277,9 +300,12 @@ export class DesktopService {
     }
     if (c.method === "discoverFeishuCLI")
       return this.discoverFeishuCLI(c.refresh);
+    if (c.method === "checkFeishuAuth")
+      return this.checkSavedFeishuAuth(c.refresh);
     if (c.method === "settings") {
       const config = readConfig(this.dir);
       const localCLI = this.store.getMeta<FeishuCLICheck>("feishuExecutable");
+      const auth = this.store.getMeta<FeishuAuthCheck>("feishuAuth");
       const views = this.store.getMeta<{ destination: string; at: string }>(
         "feishuTemplateViews",
       );
@@ -290,6 +316,7 @@ export class DesktopService {
           id: s.id,
           name: s.name,
           fill: s.capabilities.fill,
+          login: !!s.login,
           track: s.capabilities.track,
         })),
         modelConnection: this.store.getMeta("modelCheck") ?? {
@@ -298,6 +325,8 @@ export class DesktopService {
         config,
         feishuExecutable:
           localCLI?.configuredPath === config.feishu.cli ? localCLI : undefined,
+        feishuAuth:
+          auth?.configuredPath === config.feishu.cli ? auth : undefined,
         doctor: this.store.getMeta("doctor"),
         schedule: await scheduleStatus(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -477,6 +506,8 @@ export class DesktopService {
           configuredPath: path,
         });
         this.checkedCLI = path;
+        this.checkedAuthCLI = undefined;
+        this.store.setMeta("feishuAuth", null);
         this.auth = undefined;
       } else config.browser.executablePath = path;
       saveConfig(this.dir, config);
@@ -649,21 +680,24 @@ export class DesktopService {
         };
         r.step("授权链接已准备；请打开飞书授权页，再点击完成授权");
       } else {
-        if (!this.auth || this.auth.expiresAt < Date.now())
-          throw new Error("授权请求已过期，请重新开始");
-        r.step("等待飞书官方 CLI 确认授权（最多30秒，可稍后重试）");
-        const result = await cli.raw([
-          "auth",
-          "login",
-          "--device-code",
-          this.auth.deviceCode,
-          "--json",
-        ]);
-        if (result.code !== 0)
-          throw new Error("授权尚未完成，请在浏览器完成后再次检查");
-        await cli.auth();
+        if (this.auth && this.auth.expiresAt > Date.now()) {
+          r.step("等待飞书官方 CLI 确认授权（最多30秒，可稍后重试）");
+          const result = await cli.raw([
+            "auth",
+            "login",
+            "--device-code",
+            this.auth.deviceCode,
+            "--json",
+          ]);
+          if (result.code !== 0)
+            throw new Error("授权尚未完成，请在浏览器完成后再次检查");
+        }
+        r.step("正在验证飞书 CLI 已保存的登录");
+        const verified = await checkFeishuAuth(this.store, config);
+        this.checkedAuthCLI = config.feishu.cli;
+        if (verified.status !== "VALID") throw new Error(verified.message);
         this.auth = undefined;
-        await doctor(this.store, config, this.dir, this.vault);
+        r.step("飞书已授权，验证通过；退出客户端后可继续使用已有登录");
       }
       return;
     }

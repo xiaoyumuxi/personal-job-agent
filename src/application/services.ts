@@ -23,7 +23,8 @@ import {
 import type { Store } from "../db.js";
 import type { Vault } from "../vault.js";
 import type { Profile } from "../types.js";
-import { FeishuCLI } from "../feishu/cli.js";
+import { FeishuCLI, type Runner } from "../feishu/cli.js";
+import { AgentError } from "../errors.js";
 import { findCLI } from "../feishu/discovery.js";
 export { executable } from "../feishu/discovery.js";
 import { scheduleStatus } from "../schedule.js";
@@ -44,6 +45,10 @@ export async function importJobsFile(
   return {
     imported: results.filter((r) => !r.duplicate).length,
     duplicates: results.filter((r) => r.duplicate).length,
+    needsChannel: imports.filter(
+      (job, index) =>
+        !results[index]!.duplicate && job.channel === "NEEDS_CHANNEL",
+    ).length,
     results,
   };
 }
@@ -144,6 +149,40 @@ export async function resolveFeishuCLI(
   return checked;
 }
 export type FeishuCLICheck = Awaited<ReturnType<typeof resolveFeishuCLI>>;
+export interface FeishuAuthCheck {
+  configuredPath: string;
+  at: string;
+  status: "VALID" | "AUTH_REQUIRED" | "CHECK_FAILED";
+  message: string;
+}
+export async function checkFeishuAuth(
+  store: Store,
+  config: Config,
+  runner?: Runner,
+): Promise<FeishuAuthCheck> {
+  let status: FeishuAuthCheck["status"] = "VALID";
+  let message = "已授权，已有登录验证通过";
+  try {
+    await new FeishuCLI(config.feishu, runner).auth();
+  } catch (error) {
+    if (error instanceof AgentError && error.kind === "AUTH_REQUIRED") {
+      status = "AUTH_REQUIRED";
+      message = "尚未登录或授权已失效，请开始官方授权";
+    } else {
+      status = "CHECK_FAILED";
+      message = "暂时无法验证已有登录，请检查网络和 CLI 后重试";
+    }
+  }
+  // Persist only a display summary. Credentials remain in the official CLI store.
+  const result = {
+    configuredPath: config.feishu.cli,
+    at: new Date().toISOString(),
+    status,
+    message,
+  };
+  store.setMeta("feishuAuth", result);
+  return result;
+}
 export async function doctor(
   store: Store,
   config: Config,
@@ -188,12 +227,7 @@ export async function doctor(
   } catch {}
   const cli = new FeishuCLI(config.feishu);
   if (localCLI.status === "AVAILABLE") {
-    try {
-      await cli.auth();
-      result.feishuUserAuth = "VALID";
-    } catch {
-      result.feishuUserAuth = "AUTH_REQUIRED";
-    }
+    result.feishuUserAuth = (await checkFeishuAuth(store, config)).status;
   }
   if (result.feishuConfigured && result.feishuUserAuth === "VALID") {
     try {

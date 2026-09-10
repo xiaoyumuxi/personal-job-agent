@@ -139,7 +139,7 @@ test.beforeAll(async () => {
   writeFileSync(discoveryLog, "");
   writeFileSync(
     discoveryCLI,
-    `#!/usr/bin/env node\nconst fs=require('node:fs');const args=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(discoveryLog)},JSON.stringify(args)+'\\n');if(args.length===1&&args[0]==='--version') console.log('lark-cli version discovery-test');else process.exitCode=1;`,
+    `#!/usr/bin/env node\nconst fs=require('node:fs');const args=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(discoveryLog)},JSON.stringify(args)+'\\n');if(args.length===1&&args[0]==='--version') console.log('lark-cli version discovery-test');else if(args[0]==='auth'&&args[1]==='status') console.log(JSON.stringify({identities:{user:{available:false,status:'missing'}},verified:false}));else process.exitCode=1;`,
     { mode: 0o700 },
   );
   process.env.JOBAGENT_KEYCHAIN_HELPER = resolve(
@@ -210,7 +210,7 @@ test("existing SQLite → one task → login yellow → answer → pause/resume 
       window.jobagent.invoke({ method: "snapshot" }),
     ) as Promise<Snapshot>;
   expect((await read()).rows).toHaveLength(1);
-  await page.getByRole("button", { name: "辅助填写", exact: true }).click();
+  await page.getByRole("button", { name: "准备填写", exact: true }).click();
   await page
     .getByRole("button", { name: "使用此版本并继续", exact: true })
     .click();
@@ -233,6 +233,9 @@ test("existing SQLite → one task → login yellow → answer → pause/resume 
   }, jobId);
   expect(duplicate).toBe(true);
   await page
+    .getByRole("checkbox", { name: "我已核对上述目标与本次操作范围" })
+    .check();
+  await page
     .getByRole("button", { name: "我已核对，继续", exact: true })
     .click();
   await expect(
@@ -244,7 +247,7 @@ test("existing SQLite → one task → login yellow → answer → pause/resume 
   await expect(
     page.getByRole("heading", { name: "投递工作台", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "详情", exact: true }).click();
+  await page.locator(".job-title").first().click();
   expect((await read()).run?.runId).toBe(loginRun.run?.runId);
   await page.getByRole("button", { name: "已完成登录，重新检查" }).click();
   await expect
@@ -283,7 +286,7 @@ test("existing SQLite → one task → login yellow → answer → pause/resume 
     .getByRole("button", { name: "确认尚未提交，结束本次填写" })
     .click();
   await expect.poll(async () => (await read()).busy).toBe(false);
-  await page.getByRole("button", { name: "关闭任务详情" }).click();
+  await page.getByRole("button", { name: "← 返回工作台" }).click();
   await page.getByRole("button", { name: "同步飞书", exact: true }).click();
   await expect
     .poll(async () => (await read()).rows[0]!.application?.syncStatus)
@@ -293,10 +296,10 @@ test("existing SQLite → one task → login yellow → answer → pause/resume 
   expect(before.events.filter((e) => e.kind === "TASK_STARTED")).toHaveLength(
     2,
   );
-  await page.getByRole("button", { name: "关闭任务详情" }).click();
-  await page.getByRole("button", { name: "我的资料", exact: true }).click();
+  await page.getByRole("button", { name: "← 返回工作台" }).click();
+  await page.getByRole("button", { name: "简历与资料", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "我的资料", exact: true }),
+    page.getByRole("heading", { name: "简历与资料", exact: true }),
   ).toBeVisible();
   await page.locator('[id="basic.name"]').fill("确认的测试资料");
   await page
@@ -387,6 +390,7 @@ test("native import bridge, real retry exhaustion colors, unknown-result guard a
   };
   saveConfig(home, c);
   await page.getByRole("button", { name: "同步飞书", exact: true }).click();
+  await expect(page.getByRole("article", { name: "任务工作区" })).toBeVisible();
   await expect
     .poll(
       async () =>
@@ -399,7 +403,7 @@ test("native import bridge, real retry exhaustion colors, unknown-result guard a
     )
     .toBe(false);
   await expect(page.locator("tr.attention-RETRY_EXHAUSTED")).toHaveCount(1);
-  await page.getByRole("button", { name: "关闭任务详情" }).click();
+  await page.getByRole("button", { name: "← 返回工作台" }).click();
   await page
     .getByRole("button", {
       name: "客户端验收专用公司 测试岗位（不会真实投递）",
@@ -417,7 +421,7 @@ test("native import bridge, real retry exhaustion colors, unknown-result guard a
   store.save(a, "TEST_UNKNOWN_RESULT");
   store.close();
   // On smaller screens the drawer intentionally overlays the workbench.
-  await page.getByRole("button", { name: "关闭任务详情" }).click();
+  await page.getByRole("button", { name: "← 返回工作台" }).click();
   await page.getByRole("button", { name: "刷新工作台" }).click();
   const rejected = await page.evaluate(async (id) => {
     try {
@@ -440,7 +444,7 @@ test("native import bridge, real retry exhaustion colors, unknown-result guard a
   await expect(
     page.getByRole("button", { name: "记录核查结果" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "关闭任务详情" }).click();
+  await page.getByRole("button", { name: "← 返回工作台" }).click();
   // Closing an idle window keeps the app available in the Dock; activation reopens it.
   await client!.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0]!.close(),
@@ -495,9 +499,9 @@ test("native import bridge, real retry exhaustion colors, unknown-result guard a
   await stopClient();
 });
 async function verifyPDFImport(page: Page, variant: string) {
-  const closeDrawer = page.getByRole("button", { name: "关闭任务详情" });
+  const closeDrawer = page.getByRole("button", { name: "← 返回工作台" });
   if (await closeDrawer.isVisible()) await closeDrawer.click();
-  await page.getByRole("button", { name: "我的资料", exact: true }).click();
+  await page.getByRole("button", { name: "简历与资料", exact: true }).click();
   const read = () =>
     page.evaluate(() =>
       window.jobagent.invoke({ method: "profile" }),
@@ -536,7 +540,7 @@ async function verifyPDFImport(page: Page, variant: string) {
 
   // Real Keychain persistence and renderer refresh, not a fabricated UI success.
   await page.reload();
-  await page.getByRole("button", { name: "我的资料", exact: true }).click();
+  await page.getByRole("button", { name: "简历与资料", exact: true }).click();
   await expect(page.locator('[id="basic.email"]')).toHaveValue(email);
   expect((await read()).version).toEqual(imported.version);
 
@@ -586,7 +590,7 @@ test("PDF import and local OCR use real Electron and Vision; failed recognition 
   await stopClient();
 });
 async function verifyStructuredImport(page: Page) {
-  const closeDrawer = page.getByRole("button", { name: "关闭任务详情" });
+  const closeDrawer = page.getByRole("button", { name: "← 返回工作台" });
   if (await closeDrawer.isVisible()) await closeDrawer.click();
   const file = join(home, "结构化经历测试.txt");
   writeFileSync(file, structuredResume);
@@ -596,7 +600,7 @@ async function verifyStructuredImport(page: Page) {
       filePaths: [path],
     });
   }, file);
-  await page.getByRole("button", { name: "我的资料", exact: true }).click();
+  await page.getByRole("button", { name: "简历与资料", exact: true }).click();
   await page
     .getByRole("button", { name: "导入简历 / 资料", exact: true })
     .click();
@@ -609,6 +613,9 @@ async function verifyStructuredImport(page: Page) {
   expect(before.profile.records.education).toHaveLength(1);
   expect(before.profile.records.experience).toHaveLength(2);
   expect(before.profile.records.project).toHaveLength(1);
+  await page
+    .getByRole("button", { name: /项目经历 1 · 多协议通信测试框架/ })
+    .click();
   await expect(
     page.getByRole("heading", { name: /项目经历 1 · 多协议通信测试框架/ }),
   ).toBeVisible();
@@ -627,7 +634,10 @@ async function verifyStructuredImport(page: Page) {
   expect((await read()).profile.records).toEqual(before.profile.records);
   expect((await read()).profile.facts[path]?.state).toBe("confirmed");
   await page.reload();
-  await page.getByRole("button", { name: "我的资料", exact: true }).click();
+  await page.getByRole("button", { name: "简历与资料", exact: true }).click();
+  await page
+    .getByRole("button", { name: /项目经历 1 · 多协议通信测试框架/ })
+    .click();
   await expect(page.locator(`[id="${path}"]`)).toHaveValue(/多协议请求处理/);
 }
 test("structured resume records can be edited, confirmed and reimported without duplicates", async () => {
@@ -655,10 +665,13 @@ test("structured resume records can be edited, confirmed and reimported without 
   const row = page
     .getByRole("button", { name: "客户端导入测试 客户端导入岗位" })
     .locator("xpath=ancestor::tr");
-  await row.getByRole("button", { name: "辅助填写", exact: true }).click();
+  await row.getByRole("button", { name: "准备填写", exact: true }).click();
   await page
     .getByRole("button", { name: "使用此版本并继续", exact: true })
     .click();
+  await page
+    .getByRole("checkbox", { name: "我已核对上述目标与本次操作范围" })
+    .check();
   await page
     .getByRole("button", { name: "我已核对，继续", exact: true })
     .click();
@@ -675,16 +688,19 @@ function resetCLIDiscovery() {
   const store = new Store(home);
   store.setMeta("doctor", null);
   store.setMeta("feishuExecutable", null);
+  store.setMeta("feishuAuth", null);
   store.close();
 }
 async function verifyCLIDiscovery(page: Page) {
   await page.getByRole("button", { name: "设置与连接", exact: true }).click();
+  await page.getByRole("button", { name: "飞书同步", exact: true }).click();
   await expect(
     page.getByRole("status", { name: "飞书 CLI 检测结果" }),
   ).toContainText("可执行文件已验证 · lark-cli version discovery-test");
   await expect(
-    page.getByText("飞书授权：未检测 · 表结构：未检测", { exact: true }),
-  ).toBeVisible();
+    page.getByRole("status", { name: "飞书授权状态" }),
+  ).toContainText("尚未登录或授权已失效");
+  await expect(page.getByText("表结构：未检测", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "开始官方授权", exact: true }),
   ).toBeEnabled();
@@ -727,6 +743,7 @@ fs.writeFileSync(file,JSON.stringify(state));console.log(result);`,
   saveConfig(home, config);
   const page = await launch();
   await page.getByRole("button", { name: "设置与连接", exact: true }).click();
+  await page.getByRole("button", { name: "飞书同步", exact: true }).click();
   await expect(
     page.getByRole("status", { name: "飞书 CLI 检测结果" }),
   ).toContainText("template-test");
@@ -743,9 +760,15 @@ fs.writeFileSync(file,JSON.stringify(state));console.log(result);`,
   ).toBeVisible();
   const state = () => JSON.parse(readFileSync(stateFile, "utf8"));
   expect(state().views).toHaveLength(0);
-  expect(state().calls.every((args: string[]) => args[0] === "--version")).toBe(
-    true,
-  );
+  expect(
+    state().calls.every(
+      (args: string[]) =>
+        args[0] === "--version" || (args[0] === "auth" && args[1] === "status"),
+    ),
+  ).toBe(true);
+  await page
+    .getByRole("checkbox", { name: "我已核对上述目标与本次操作范围" })
+    .check();
   await page
     .getByRole("button", { name: "我已核对，继续", exact: true })
     .click();
@@ -795,17 +818,18 @@ test("automatically discovers nvm CLI on settings entry without authorizing, per
     window.jobagent.invoke({ method: "snapshot" }),
   )) as Snapshot;
   await verifyCLIDiscovery(page);
-  expect(calls().slice(beforeCalls)).toEqual([["--version"]]);
+  const checks = [["--version"], ["auth", "status", "--json", "--verify"]];
+  expect(calls().slice(beforeCalls)).toEqual(checks);
   await page.getByRole("button", { name: "投递工作台", exact: true }).click();
   await verifyCLIDiscovery(page);
   await page.reload();
   await verifyCLIDiscovery(page);
-  expect(calls().length).toBe(beforeCalls + 1);
+  expect(calls().length).toBe(beforeCalls + 2);
   await page.getByRole("button", { name: "重新查找", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "开始官方授权", exact: true }),
   ).toBeEnabled();
-  expect(calls().length).toBe(beforeCalls + 2);
+  expect(calls().length).toBe(beforeCalls + 4);
   const after = (await page.evaluate(() =>
     window.jobagent.invoke({ method: "snapshot" }),
   )) as Snapshot;
@@ -814,9 +838,9 @@ test("automatically discovers nvm CLI on settings entry without authorizing, per
   await stopClient();
   const reopened = await launch();
   await verifyCLIDiscovery(reopened);
-  expect(calls().slice(beforeCalls)).toEqual(
-    Array.from({ length: 3 }, () => ["--version"]),
-  );
+  await expect
+    .poll(() => calls().slice(beforeCalls))
+    .toEqual(Array.from({ length: 3 }, () => checks).flat());
   await stopClient();
 });
 test("packaged app starts with Finder-like PATH, core resources and SQLite", async () => {

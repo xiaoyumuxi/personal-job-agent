@@ -8,6 +8,7 @@ export function ProfilePicker({
   company,
   title,
   choices,
+  draftCounts,
   previousId,
   busy,
   cancel,
@@ -16,6 +17,7 @@ export function ProfilePicker({
   company: string;
   title: string;
   choices: ProfileChoices;
+  draftCounts: Record<string, number>;
   previousId?: string;
   busy: boolean;
   cancel: () => void;
@@ -32,11 +34,35 @@ export function ProfilePicker({
   return (
     <dialog
       ref={dialog}
+      tabIndex={-1}
       aria-labelledby="profile-picker-title"
       className="profile-picker"
       onCancel={(e) => {
         e.preventDefault();
         if (!busy) cancel();
+      }}
+      onKeyDown={(e) => {
+        if (e.key !== "Tab") return;
+        const elements = Array.from(
+          e.currentTarget.querySelectorAll<HTMLElement>(
+            "button:not(:disabled), select:not(:disabled), input:not(:disabled), [tabindex='0']",
+          ),
+        ).filter((element) => element.getClientRects().length > 0);
+        const first = elements[0],
+          last = elements.at(-1);
+        if (!first) {
+          e.preventDefault();
+          e.currentTarget.focus();
+        } else if (
+          !elements.includes(document.activeElement as HTMLElement) ||
+          (!e.shiftKey && document.activeElement === last)
+        ) {
+          e.preventDefault();
+          first.focus();
+        } else if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        }
       }}
     >
       <h2 id="profile-picker-title">选择本次使用的简历</h2>
@@ -66,6 +92,12 @@ export function ProfilePicker({
           修订 {version.revision} · {version.file || "未导入附件"}
         </p>
       )}
+      {!!draftCounts[id] && (
+        <p className="callout warning">
+          此版本有 {draftCounts[id]}{" "}
+          项未确认草稿。请返回“简历与资料”确认保存，或放弃本次修改后再继续，避免使用修改前的资料。
+        </p>
+      )}
       <p className="hint">
         本次填写与附件上传使用所选版本；不会改变其他岗位或默认简历。继续后还需确认网站资料披露，最终提交由你在官网完成。
       </p>
@@ -75,7 +107,7 @@ export function ProfilePicker({
         </button>
         <button
           className="primary"
-          disabled={busy || !version}
+          disabled={busy || !version || !!draftCounts[id]}
           onClick={() => choose(id)}
         >
           使用此版本并继续

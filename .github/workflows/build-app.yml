@@ -1,0 +1,153 @@
+name: Build macOS App
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: macOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Node and Swift helpers must have the same architecture as Electron.
+          - runner: macos-15
+            arch: arm64
+            macho: arm64
+          - runner: macos-15-intel
+            arch: x64
+            macho: x86_64
+    defaults:
+      run:
+        shell: bash
+    env:
+      CI: "true"
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          architecture: ${{ matrix.arch }}
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Prepare isolated desktop test environment
+        env:
+          TEST_KEYCHAIN: ${{ runner.temp }}/jobagent-ci.keychain-db
+        run: |
+          echo "JOBAGENT_HOME=$RUNNER_TEMP/jobagent-ci" >> "$GITHUB_ENV"
+          test "$(node -p process.arch)" = "${{ matrix.arch }}"
+          if [[ ! -x "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ]]; then
+            npx playwright install chrome
+          fi
+          # Only synthetic test data is stored in this disposable keychain.
+          test_keychain_password="$(openssl rand -hex 24)"
+          security create-keychain -p "$test_keychain_password" "$TEST_KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$TEST_KEYCHAIN"
+          security unlock-keychain -p "$test_keychain_password" "$TEST_KEYCHAIN"
+          security list-keychains -d user -s "$TEST_KEYCHAIN"
+          security default-keychain -d user -s "$TEST_KEYCHAIN"
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build and package native App
+        run: npm run desktop:package
+
+      - name: Verify bundled architectures and runtime
+        env:
+          APP_PATH: release/JobAgent-darwin-${{ matrix.arch }}/JobAgent.app
+        run: |
+          for binary in \
+            "$APP_PATH/Contents/MacOS/JobAgent" \
+            "$APP_PATH/Contents/Resources/.desktop-runtime/node" \
+            "$APP_PATH/Contents/Resources/.desktop-runtime/keychain-helper" \
+            "$APP_PATH/Contents/Resources/.desktop-runtime/pdf-ocr-helper"; do
+            test -x "$binary"
+            lipo "$binary" -verify_arch "${{ matrix.macho }}"
+          done
+          "$APP_PATH/Contents/Resources/.desktop-runtime/node" --input-type=module -e \
+            'import { DatabaseSync } from "node:sqlite"; const db = new DatabaseSync(":memory:"); db.close();'
+          test -f "$APP_PATH/Contents/Resources/app/desktop-build/index.html"
+          test -f "$APP_PATH/Contents/Resources/app/dist/desktop/worker.js"
+          test ! -d "$APP_PATH/Contents/Resources/app/.github"
+          test ! -d "$APP_PATH/Contents/Resources/app/.idea"
+          test ! -d "$APP_PATH/Contents/Resources/app/outputs"
+
+      - name: Browser and renderer tests
+        run: npm run test:browser
+
+      - name: Archive App and extract for distribution tests
+        env:
+          APP_PATH: release/JobAgent-darwin-${{ matrix.arch }}/JobAgent.app
+          ARCHIVE_NAME: JobAgent-macOS-${{ matrix.arch }}
+        run: |
+          mkdir -p release/artifacts "$RUNNER_TEMP/jobagent-unpacked"
+          # Preserve executable permissions, framework symlinks and bundle metadata.
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "release/artifacts/$ARCHIVE_NAME.zip"
+          (cd release/artifacts && shasum -a 256 "$ARCHIVE_NAME.zip" > "$ARCHIVE_NAME.zip.sha256")
+          ditto -x -k "release/artifacts/$ARCHIVE_NAME.zip" "$RUNNER_TEMP/jobagent-unpacked"
+
+      - name: Electron and extracted App tests
+        env:
+          JOBAGENT_TEST_PACKAGE: "1"
+          JOBAGENT_TEST_PACKAGE_DIR: ${{ runner.temp }}/jobagent-unpacked/JobAgent.app
+        run: npm run test:desktop
+
+      - name: Upload verified App
+        id: artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: JobAgent-macOS-${{ matrix.arch }}
+          path: release/artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Build summary
+        env:
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+        run: |
+          {
+            echo "### JobAgent macOS ${{ matrix.arch }}"
+            echo ""
+            echo "Commit: $GITHUB_SHA"
+            echo ""
+            echo "[Download App ZIP and SHA-256 checksum]($ARTIFACT_URL)"
+            echo ""
+            echo "Typecheck, unit, browser, Electron and extracted App tests passed."
+            echo ""
+            echo "This build has no Developer ID signing or Apple notarization."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Delete disposable test keychain
+        if: always()
+        env:
+          TEST_KEYCHAIN: ${{ runner.temp }}/jobagent-ci.keychain-db
+        run: |
+          if [[ -f "$TEST_KEYCHAIN" ]]; then
+            security delete-keychain "$TEST_KEYCHAIN"
+          fi

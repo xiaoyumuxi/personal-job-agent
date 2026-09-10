@@ -48,6 +48,8 @@ export interface Job {
   source: string;
   applicationChannel?: string;
   note?: string;
+  sourceFields?: Record<string, string>;
+  importWarning?: string;
   channel: "READY" | "NEEDS_CHANNEL";
   dedupWarning?: string;
 }

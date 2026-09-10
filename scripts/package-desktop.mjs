@@ -14,10 +14,10 @@ const paths = await packager({
   extraResource: [".desktop-runtime"],
   ignore: [
     /^\/release($|\/)/,
-    /^\/\.git($|\/)/,
+    /^\/\.(git|github|idea)($|\/)/,
     /^\/\.jobagent[^/]*(\/|$)/,
     /^\/\.desktop-runtime($|\/)/,
-    /^\/(tests|test-results|fixtures|desktop|scripts|docs)(\/|$)/,
+    /^\/(tests|test-results|fixtures|desktop|scripts|docs|outputs)(\/|$)/,
     /^\/node_modules\/\.cache/,
     /^\/dist\/(tests|fixtures)(\/|$)/,
   ],

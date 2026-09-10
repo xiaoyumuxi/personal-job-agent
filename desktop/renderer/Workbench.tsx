@@ -1,237 +1,355 @@
-import { useState, useEffect } from "react";
-import {
-  api,
-  label,
-  date,
-  Badge,
-  type Start,
-  type Perform,
-  type Send,
-} from "./shared.js";
+import { useState } from "react";
+import { label, date, type Start } from "./shared.js";
 import type { Snapshot } from "../contract.js";
+import {
+  presentJob,
+  isActiveRun,
+  selectJobs,
+  evidenceLabel,
+  type JobFilter,
+} from "./jobPresentation.js";
+
 export function Workbench({
   snapshot,
   busy,
-  selected,
   select,
   start,
   importJobs,
   refresh,
+  settings,
+  profile,
 }: {
   snapshot: Snapshot;
   busy: boolean;
-  selected?: string;
   select: (id: string) => void;
   start: Start;
   importJobs: () => unknown;
   refresh: () => unknown;
+  settings: () => void;
+  profile: () => void;
 }) {
   const [query, setQuery] = useState(""),
-    [filter, setFilter] = useState("all");
-  const rows = snapshot.rows
-    .filter((r) =>
-      `${r.job.company} ${r.job.title}`
-        .toLowerCase()
-        .includes(query.toLowerCase()),
-    )
-    .filter((r) => {
-      if (filter === "all") return true;
-      const a = r.application;
-      if (filter === "todo") return !a || a.state === "DRAFT";
-      if (filter === "attention")
-        return (
-          r.attention !== "NORMAL" ||
-          (a &&
-            (["UNKNOWN_RESULT", "REVIEW"].includes(a.state) ||
-              [a.queryStatus, a.syncStatus].some((s) =>
-                ["STOPPED", "NEEDS_ADAPTER", "NOT_CONFIGURED"].includes(s),
-              )))
-        );
-      if (filter === "done")
-        return (
-          a?.outcome &&
-          !["UNKNOWN", "PENDING", "IN_PROGRESS"].includes(a.outcome)
-        );
-      return !!a && ["FILLING", "REVIEW", "SUBMITTED"].includes(a.state);
-    });
+    [filter, setFilter] = useState<JobFilter>("all");
+  const { rows, counts } = selectJobs(snapshot, query, filter);
+  const attention = snapshot.rows
+    .map((row) => ({ row, presentation: presentJob(row, snapshot) }))
+    .filter(({ presentation }) => presentation.group === "attention")
+    .sort(
+      (a, b) =>
+        Number(isActiveRun(snapshot) && snapshot.run?.jobId === b.row.job.id) -
+        Number(isActiveRun(snapshot) && snapshot.run?.jobId === a.row.job.id),
+    );
+  const globalAttention =
+    isActiveRun(snapshot) &&
+    snapshot.run &&
+    !snapshot.run.jobId &&
+    (snapshot.run.request || snapshot.run.state === "PAUSED");
+  const attentionCount = attention.length + (globalAttention ? 1 : 0);
   return (
     <>
       <header className="page-head">
         <div>
           <div className="eyebrow">岗位与申请</div>
           <h1>投递工作台</h1>
-          <p>选择一个岗位开始辅助填写，随时接管浏览器。</p>
+          <p>先处理需要你接管的事项，再继续下一条申请。</p>
         </div>
         <button className="primary" onClick={importJobs} disabled={busy}>
           ＋ 导入岗位
         </button>
       </header>
-      <div className="toolbar">
-        <input
-          aria-label="搜索公司或岗位"
-          className="search"
-          placeholder="搜索公司或岗位"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <button onClick={() => start("track")} disabled={busy}>
-          批量查询进度
-        </button>
-        <button onClick={() => start("sync")} disabled={busy}>
-          同步飞书
-        </button>
-        <button onClick={refresh} aria-label="刷新工作台">
-          刷新
-        </button>
-      </div>
-      <div className="filters" role="group" aria-label="岗位筛选">
-        {[
-          ["all", "全部"],
-          ["todo", "待投递"],
-          ["progress", "进行中"],
-          ["attention", "需要处理"],
-          ["done", "已完成"],
-        ].map(([id, text]) => (
-          <button
-            key={id}
-            aria-pressed={filter === id}
-            className={filter === id ? "selected" : ""}
-            onClick={() => setFilter(id!)}
-          >
-            {text}
-          </button>
-        ))}
-        <span>{rows.length} 个岗位</span>
-      </div>
-      {snapshot.lock && !snapshot.busy && (
-        <div className="banner warning">
-          CLI 或 launchd
-          正在使用专用浏览器，或上次退出留下锁。可在设置中检查失效锁。
-        </div>
-      )}
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>公司 / 岗位</th>
-              <th>招聘阶段</th>
-              <th>官网登录</th>
-              <th>执行状态</th>
-              <th>飞书同步</th>
-              <th>最近查询 / 待办</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr
-                key={r.job.id}
-                className={`attention-${r.attention} ${selected === r.job.id ? "current" : ""}`}
+      {attentionCount > 0 && (
+        <section className="action-queue" aria-label="待我接管">
+          <div className="section-title">
+            <h2>先处理这 {attentionCount} 件事</h2>
+            <span className="hint">来自全部岗位与当前任务</span>
+          </div>
+          <div className="priority-grid">
+            {globalAttention && (
+              <button
+                className="priority-card"
+                onClick={() => select("global")}
               >
-                <td>
-                  <button
-                    className="job-title"
-                    onClick={() => select(r.job.id)}
-                  >
-                    <strong>{r.job.company}</strong>
-                    <span>{r.job.title}</span>
-                  </button>
-                  <small>{r.job.batch || "未标注批次"}</small>
-                </td>
-                <td>
-                  {r.application?.stage && r.application.stage !== "UNKNOWN"
-                    ? label(r.application.stage)
-                    : "未知阶段"}
-                  <small>{r.application?.rawStatus || "尚无官网进度"}</small>
-                </td>
-                <td>
-                  <Badge
-                    value={r.application?.authStatus}
-                    text={
-                      r.application?.authStatus === "AUTH_REQUIRED"
-                        ? "需要官网登录"
-                        : undefined
-                    }
-                  />
-                </td>
-                <td>
-                  <Badge
-                    value={
-                      snapshot.run?.jobId === r.job.id && snapshot.busy
-                        ? snapshot.run.state
-                        : r.application?.state || "DRAFT"
-                    }
-                  />
+                <span className="priority-icon" aria-hidden>
+                  ◎
+                </span>
+                <span>
+                  <strong>处理工作空间任务</strong>
                   <small>
-                    查询：{label(r.application?.queryStatus || "NEVER")}
+                    {label(snapshot.run!.operation)} ·{" "}
+                    {label(snapshot.run!.state)}
                   </small>
-                  {r.attention !== "NORMAL" && (
-                    <small className="reason">
-                      {r.attention === "AUTH_REQUIRED"
-                        ? "需要处理登录或飞书授权"
-                        : "查询或同步已重试耗尽"}
-                    </small>
-                  )}
-                </td>
-                <td>
-                  <Badge
-                    value={r.application?.syncStatus || "NEVER"}
-                    text={
-                      r.application?.syncStatus === "AUTH_REQUIRED"
-                        ? "需要飞书授权"
-                        : undefined
-                    }
-                  />
-                  {r.application?.syncError && (
-                    <small className="reason">远端可能尚未更新</small>
-                  )}
-                </td>
-                <td>
-                  <small>{date(r.application?.lastAttempt)}</small>
-                  <span className="todo">
-                    {r.application?.nextAction ||
-                      (r.job.channel === "READY"
-                        ? "确认资料后启动填写"
-                        : "缺少投递入口；在详情中补充")}
-                  </span>
-                </td>
-                <td>
-                  <div className="row-actions">
-                    <button
-                      className="primary subtle"
-                      disabled={busy || !r.permissions.apply}
-                      onClick={() => start("apply", r.job.id)}
-                    >
-                      辅助填写
-                    </button>
-                    <button onClick={() => select(r.job.id)}>详情</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!rows.length && (
-          <div className="empty">
-            <span className="empty-symbol">▤</span>
-            <h2>
-              {snapshot.rows.length ? "没有匹配的岗位" : "把你的岗位清单带进来"}
-            </h2>
-            <p>
-              {snapshot.rows.length
-                ? "尝试调整关键词或筛选条件。"
-                : "支持 CSV、TSV 和 XLSX。导入只记录岗位，不会自动投递。"}
-            </p>
-            {!snapshot.rows.length && (
-              <button className="primary" disabled={busy} onClick={importJobs}>
-                选择岗位文件
+                </span>
+                <span aria-hidden>→</span>
               </button>
             )}
+            {attention.slice(0, 6).map(({ row, presentation: p }) => (
+              <button
+                key={row.job.id}
+                className="priority-card"
+                onClick={() => select(row.job.id)}
+              >
+                <span className="priority-icon" aria-hidden>
+                  {row.application?.state === "UNKNOWN_RESULT" ? "!" : "→"}
+                </span>
+                <span>
+                  <strong>{p.title}</strong>
+                  <small>
+                    {row.job.company} · {row.job.title}
+                  </small>
+                </span>
+                <span aria-hidden>›</span>
+              </button>
+            ))}
           </div>
-        )}
-      </div>
+          {attention.length > 6 && (
+            <button
+              className="text-button"
+              onClick={() => {
+                setQuery("");
+                setFilter("attention");
+              }}
+            >
+              查看全部 {attention.length} 个待接管岗位
+            </button>
+          )}
+        </section>
+      )}
+      {!snapshot.rows.length && (
+        <section className="onboarding panel" aria-label="首次使用准备">
+          <div className="section-title">
+            <h2>从这三步开始</h2>
+            <span className="hint">飞书与模型按需配置</span>
+          </div>
+          <ol className="setup-steps">
+            <li>
+              <span>1</span>
+              <div>
+                <strong>检查核心环境</strong>
+                <p>选择专用 Chrome，并检测本机环境。</p>
+                <button onClick={settings}>检查环境</button>
+              </div>
+            </li>
+            <li>
+              <span>2</span>
+              <div>
+                <strong>准备简历与资料</strong>
+                <p>导入简历，核对识别内容并逐项确认。</p>
+                <button onClick={profile}>准备资料</button>
+              </div>
+            </li>
+            <li>
+              <span>3</span>
+              <div>
+                <strong>导入目标岗位</strong>
+                <p>导入只建立清单，由你选择何时开始。</p>
+                <button onClick={importJobs} disabled={busy}>
+                  选择岗位文件
+                </button>
+              </div>
+            </li>
+          </ol>
+        </section>
+      )}
+      {snapshot.lock && !snapshot.busy && (
+        <div className="banner warning">
+          其他进程正在使用工作空间，或上次退出留下锁。
+          <button onClick={settings}>前往设置检查</button>
+        </div>
+      )}
+      <section className="jobs-panel" aria-label="岗位清单">
+        <div className="toolbar">
+          <input
+            aria-label="搜索公司或岗位"
+            className="search"
+            placeholder="搜索公司或岗位"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <button
+            onClick={() => start("track")}
+            disabled={busy}
+            title={busy ? "当前任务结束后可查询" : undefined}
+          >
+            批量查询进度
+          </button>
+          <button
+            onClick={() => start("sync")}
+            disabled={busy}
+            title={busy ? "当前任务结束后可同步" : undefined}
+          >
+            同步飞书
+          </button>
+          <button onClick={refresh} aria-label="刷新工作台">
+            刷新
+          </button>
+        </div>
+        <div className="filters" role="group" aria-label="岗位筛选">
+          {(
+            [
+              ["all", "全部"],
+              ["attention", "待我接管"],
+              ["todo", "待准备"],
+              ["progress", "跟进中"],
+              ["done", "已结束"],
+            ] as const
+          ).map(([id, text]) => (
+            <button
+              key={id}
+              aria-pressed={filter === id}
+              className={filter === id ? "selected" : ""}
+              onClick={() => setFilter(id)}
+            >
+              {text} <span className="count">{counts[id]}</span>
+            </button>
+          ))}
+          <span>
+            {query.trim() ? "搜索范围内" : "全部本地岗位"} · {rows.length} 条
+          </span>
+        </div>
+        <div className="table-wrap">
+          <table className="jobs-table">
+            <thead>
+              <tr>
+                <th>公司 / 岗位</th>
+                <th>招聘进展</th>
+                <th>下一步</th>
+                <th>最近记录 / 来源</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ row: r, presentation: p }) => (
+                <tr key={r.job.id} className={`attention-${r.attention}`}>
+                  <td data-label="公司 / 岗位">
+                    <div className="company-cell">
+                      <span className="company-mark" aria-hidden>
+                        {r.job.company.slice(0, 1)}
+                      </span>
+                      <div>
+                        <button
+                          className="job-title"
+                          onClick={() => select(r.job.id)}
+                        >
+                          <strong>{r.job.company}</strong>
+                          <span>{r.job.title}</span>
+                        </button>
+                        <small>{r.job.batch || "未标注批次"}</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td data-label="招聘进展">
+                    <span className="stage-label">
+                      {r.application?.stage && r.application.stage !== "UNKNOWN"
+                        ? label(r.application.stage)
+                        : "尚无官网进展"}
+                    </span>
+                    <small>
+                      {r.application?.rawStatus ||
+                        (r.application ? "暂无官网状态原文" : "岗位已导入")}
+                    </small>
+                  </td>
+                  <td data-label="下一步">
+                    <span
+                      className={
+                        p.group === "attention"
+                          ? "next-action needs-you"
+                          : "next-action"
+                      }
+                    >
+                      {p.description}
+                    </span>
+                    {p.connectionIssue && (
+                      <button className="connection-note" onClick={settings}>
+                        {p.connectionIssue} →
+                      </button>
+                    )}
+                  </td>
+                  <td data-label="最近记录 / 来源">
+                    <span>
+                      {r.application?.lastAttempt
+                        ? `最近尝试：${date(r.application.lastAttempt)}`
+                        : "尚无执行时间记录"}
+                    </span>
+                    <small>{evidenceLabel(r)}</small>
+                    <small className="source-origin">
+                      导入来源：{r.job.source || "未记录"}
+                    </small>
+                  </td>
+                  <td data-label="操作">
+                    <div className="row-actions">
+                      <button
+                        className={
+                          p.group === "attention" ? "primary subtle" : ""
+                        }
+                        disabled={
+                          p.action === "apply" && (busy || !!p.disabledReason)
+                        }
+                        title={
+                          p.disabledReason ||
+                          (busy && p.action === "apply"
+                            ? "正在处理其他操作"
+                            : undefined)
+                        }
+                        onClick={() =>
+                          p.action === "apply"
+                            ? start("apply", r.job.id)
+                            : p.action === "settings"
+                              ? settings()
+                              : select(r.job.id)
+                        }
+                      >
+                        {p.title}
+                      </button>
+                      {p.action !== "task" && (
+                        <button
+                          className="text-button"
+                          onClick={() => select(r.job.id)}
+                        >
+                          详情
+                        </button>
+                      )}
+                      {p.disabledReason && (
+                        <small className="disabled-reason">
+                          {p.disabledReason}
+                        </small>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!rows.length && (
+            <div className="empty">
+              <span className="empty-symbol" aria-hidden>
+                ▤
+              </span>
+              <h2>
+                {snapshot.rows.length
+                  ? "没有匹配的岗位"
+                  : "把你的岗位清单带进来"}
+              </h2>
+              <p>
+                {snapshot.rows.length
+                  ? "尝试调整关键词或筛选条件。"
+                  : "支持 CSV、TSV 和 XLSX，识别企业名称、招聘岗位、内推类型和链接。导入不会自动投递。"}
+              </p>
+              {snapshot.rows.length > 0 && (
+                <button
+                  onClick={() => {
+                    setQuery("");
+                    setFilter("all");
+                  }}
+                >
+                  清除搜索与筛选
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
       <p className="footnote">
-        批量查询只读取已有申请进度。官网回执、本人核查结果与飞书同步状态分别记录。
+        每个岗位只计入一个分组；待接管优先于申请进展。官网回执、本人核查与飞书同步分别记录。
       </p>
     </>
   );

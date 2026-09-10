@@ -119,7 +119,9 @@ for (const packaged of [false, true])
     };
     try {
       let page = await launch();
-      await page.getByRole("button", { name: "我的资料", exact: true }).click();
+      await page
+        .getByRole("button", { name: "简历与资料", exact: true })
+        .click();
       const importPDF = async (file: string, email: string) => {
         writeFileSync(file, textPDF(`Email: ${email} Phone: 13812345678`));
         await client!.evaluate(({ dialog }, path) => {
@@ -156,6 +158,7 @@ for (const packaged of [false, true])
         .getByRole("button", { name: "确认并保存" })
         .click();
       await expect(page.getByRole("status")).toContainText("回读验证");
+      await page.getByText("版本名称与附件", { exact: true }).click();
       await page.getByLabel("简历版本名称").fill("Agent 专用版");
       await page.getByRole("button", { name: "保存版本名称" }).click();
       await expect(page.getByRole("status")).toContainText("版本名称已保存");
@@ -166,11 +169,13 @@ for (const packaged of [false, true])
       await page.getByLabel("当前简历版本").selectOption(a.selected.id);
       await expect(page.locator('[id="basic.name"]')).toHaveValue("后端版姓名");
       await page.reload();
-      await page.getByRole("button", { name: "我的资料", exact: true }).click();
+      await page
+        .getByRole("button", { name: "简历与资料", exact: true })
+        .click();
       await expect(page.getByLabel("当前简历版本")).toHaveValue(a.selected.id);
       await stop();
       page = await launch();
-      await page.getByRole("button", { name: "辅助填写", exact: true }).click();
+      await page.getByRole("button", { name: "准备填写", exact: true }).click();
       await expect(page.getByRole("dialog")).toBeVisible();
       expect((await state(page)).run).toBeUndefined(); // opening the picker never starts a task
       await page.getByLabel("本次投递简历").selectOption(b.selected.id);
@@ -194,9 +199,15 @@ for (const packaged of [false, true])
       }, a.selected.id);
       expect(denied).toBe(true);
       await page
+        .getByRole("checkbox", { name: "我已核对上述目标与本次操作范围" })
+        .check();
+      await page
         .getByRole("button", { name: "我已核对，继续", exact: true })
         .click();
       await expect(page.getByText(/该网站没有登录验证规则/)).toBeVisible();
+      await page
+        .getByRole("checkbox", { name: "我已核对上述目标与本次操作范围" })
+        .check();
       await page
         .getByRole("button", { name: "我已核对，继续", exact: true })
         .click();
@@ -233,7 +244,7 @@ for (const packaged of [false, true])
       expect((await state(page)).run?.profile?.id).toBe(b.selected.id);
       await page.getByRole("button", { name: "恢复任务", exact: true }).click();
       await page.reload();
-      await page.getByRole("button", { name: "详情", exact: true }).click();
+      await page.locator(".job-title").first().click();
       expect((await state(page)).run?.runId).toBe(run.runId);
       expect(await page.evaluate(() => localStorage.length)).toBe(0);
       await stop();

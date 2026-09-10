@@ -11,6 +11,8 @@ import {
 import type { SettingsView, FileKind } from "../contract.js";
 export function SettingsPage({
   busy,
+  active,
+  canCheckLock,
   runState,
   perform,
   command,
@@ -18,6 +20,8 @@ export function SettingsPage({
   choose,
 }: {
   busy: boolean;
+  active: boolean;
+  canCheckLock: boolean;
   runState?: string;
   perform: Perform;
   command: Send;
@@ -30,11 +34,13 @@ export function SettingsPage({
     [plan, setPlan] = useState(""),
     [discovering, setDiscovering] = useState(false),
     [loadError, setLoadError] = useState("");
+  const [category, setCategory] = useState("overview");
   const discoveryStarted = useRef(false),
     alive = useRef(true),
     revision = useRef(0);
   const receive = (v: SettingsView) => {
     if (!alive.current) return;
+    setLoadError("");
     setView(v);
     setDraft((d) =>
       d
@@ -58,6 +64,7 @@ export function SettingsPage({
     };
   }, []);
   useEffect(() => {
+    if (!active) return;
     let current = true;
     const id = ++revision.current;
     void api
@@ -71,21 +78,27 @@ export function SettingsPage({
     return () => {
       current = false;
     };
-  }, [runState]);
+  }, [runState, active]);
   const discover = (refresh = false) => {
     setDiscovering(true);
     return perform(async () => {
-      await api.invoke({ method: "discoverFeishuCLI", refresh });
+      const cli = (await api.invoke({
+        method: "discoverFeishuCLI",
+        refresh,
+      })) as SettingsView["feishuExecutable"];
+      if (cli?.status === "AVAILABLE")
+        await api.invoke({ method: "checkFeishuAuth", refresh });
       await load();
     }).finally(() => {
       if (alive.current) setDiscovering(false);
     });
   };
   useEffect(() => {
-    if (busy || discoveryStarted.current) return;
+    if (!active || category !== "feishu" || busy || discoveryStarted.current)
+      return;
     discoveryStarted.current = true;
     void discover();
-  }, [busy]);
+  }, [busy, active, category]);
   if (loadError)
     return (
       <div className="empty" role="alert">
@@ -94,7 +107,8 @@ export function SettingsPage({
     );
   if (!view || !draft) return <div className="empty">正在读取现有配置…</div>;
   const d = view.doctor,
-    localCLI = view.feishuExecutable;
+    localCLI = view.feishuExecutable,
+    auth = view.feishuAuth;
   const save = () =>
     perform(async () => {
       await api.invoke({
@@ -107,21 +121,31 @@ export function SettingsPage({
       setKey("");
       setPlan("");
       await load();
-    }, "配置已保存；验证结果需重新检测");
+    }, "配置已保存；已有飞书授权保留，变更的连接配置需重新检测");
   const pick = (kind: FileKind) =>
     perform(async () => {
       await choose(kind);
+      if (kind === "feishuCLI")
+        await api.invoke({ method: "checkFeishuAuth", refresh: true });
       const v = (await api.invoke({ method: "settings" })) as SettingsView;
-      setView(v);
-      setDraft(v.config);
+      receive(v);
     });
+  const dirty =
+    key !== "" ||
+    JSON.stringify([draft.feishu, draft.model, draft.schedule]) !==
+      JSON.stringify([
+        view.config.feishu,
+        view.config.model,
+        view.config.schedule,
+      ]);
+  const modelOptional = !view.config.model.enabled;
   return (
     <>
       <header className="page-head">
         <div>
           <div className="eyebrow">本地环境与官方连接</div>
           <h1>设置与连接</h1>
-          <p>配置保存与连接验证分别记录，打开客户端不会安装调度。</p>
+          <p>先准备核心环境，飞书同步与模型辅助按需开启。</p>
         </div>
         <button
           className="primary"
@@ -131,12 +155,96 @@ export function SettingsPage({
           检测连接
         </button>
       </header>
+      <nav className="settings-tabs" aria-label="设置分类">
+        {[
+          ["overview", "连接概览"],
+          ["sites", "站点规则"],
+          ["feishu", "飞书同步"],
+          ["model", "模型辅助"],
+          ["schedule", "每日查询"],
+          ["data", "数据与隐私"],
+        ].map(([id, title]) => (
+          <button
+            key={id}
+            aria-pressed={category === id}
+            className={category === id ? "selected" : ""}
+            onClick={() => setCategory(id!)}
+          >
+            {title}
+          </button>
+        ))}
+      </nav>
+      {dirty && (
+        <p className="callout warning" role="status">
+          有未保存的配置。分类切换会保留草稿；连接检测、授权和调度预览使用已保存的配置。
+        </p>
+      )}
+      {category === "overview" && (
+        <div className="connection-grid">
+          <button
+            className="connection-card"
+            onClick={() =>
+              document
+                .getElementById("chrome-settings")
+                ?.scrollIntoView({ block: "center" })
+            }
+          >
+            <span className="eyebrow">核心环境</span>
+            <strong>专用 Chrome</strong>
+            <Badge value={d ? (d.chrome ? "VALID" : "FAILED") : "NOT_TESTED"} />
+            <p>浏览器可用后，在对应岗位中登录官网。</p>
+          </button>
+          <button
+            className="connection-card"
+            onClick={() => setCategory("sites")}
+          >
+            <span className="eyebrow">按站点配置</span>
+            <strong>站点规则</strong>
+            <span className="stage-label">{view.sites.length} 个站点规则</span>
+            <p>填写、登录验证与进度查询分别配置。</p>
+          </button>
+          <button
+            className="connection-card"
+            onClick={() => setCategory("feishu")}
+          >
+            <span className="eyebrow">可选连接</span>
+            <strong>飞书同步</strong>
+            <span className="stage-label">
+              {view.config.feishu.enabled ? "已启用 · 查看验证阶段" : "未启用"}
+            </span>
+            <p>
+              CLI：{localCLI?.status === "AVAILABLE" ? "可用" : "尚未验证"} ·
+              授权：{auth?.status ? label(auth.status) : "未检测"}
+              <br />
+              目标表：{label(d?.feishuTable || "NOT_TESTED")}
+            </p>
+          </button>
+          <button
+            className="connection-card"
+            onClick={() => setCategory("model")}
+          >
+            <span className="eyebrow">可选连接</span>
+            <strong>模型辅助</strong>
+            <Badge
+              value={
+                modelOptional ? "NOT_CONFIGURED" : view.modelConnection.status
+              }
+              text={modelOptional ? "可选 · 未启用" : undefined}
+            />
+            <p>未配置也可使用规则填写和人工补充。</p>
+          </button>
+        </div>
+      )}
       <p className="hint">
         最近检测：{date(d?.at)}。未检测的连接不会显示正常。
       </p>
-      <section className="panel">
+      <section
+        className="panel"
+        id="chrome-settings"
+        hidden={category !== "overview"}
+      >
         <div className="section-title">
-          <h2>Chrome 与站点规则</h2>
+          <h2>Chrome · 核心环境</h2>
           <Badge value={d ? (d.chrome ? "VALID" : "FAILED") : "NOT_TESTED"} />
         </div>
         <p className="mono">{view.config.browser.executablePath}</p>
@@ -148,20 +256,30 @@ export function SettingsPage({
           <button disabled={busy} onClick={() => pick("chrome")}>
             选择 Chrome
           </button>
-          <button disabled={busy} onClick={() => pick("site")}>
-            导入站点规则
-          </button>
         </div>
         <p className="hint">
           官网登录在岗位任务中处理。专用 Chrome
           独立于日常浏览器，客户端不会迁移登录数据。
         </p>
+      </section>
+      <section className="panel" hidden={category !== "sites"}>
+        <div className="section-title">
+          <h2>站点能力</h2>
+          <button disabled={busy} onClick={() => pick("site")}>
+            导入站点规则
+          </button>
+        </div>
+        <p className="hint">
+          规则已配置不等于官网验证通过。登录状态需要在对应岗位任务中重新检查。
+        </p>
         {view.sites.length ? (
           view.sites.map((s) => (
-            <p key={s.id}>
-              {s.name} · 填写{s.fill ? "已配置" : "不支持"} · 查询
-              {s.track ? "已配置" : "不支持"}
-            </p>
+            <div className="site-capabilities" key={s.id}>
+              <strong>{s.name}</strong>
+              <span>辅助填写：{s.fill ? "规则已配置" : "未启用"}</span>
+              <span>登录验证：{s.login ? "规则已配置" : "待配置"}</span>
+              <span>进度查询：{s.track ? "规则已配置" : "待配置"}</span>
+            </div>
           ))
         ) : (
           <p className="hint">
@@ -169,9 +287,9 @@ export function SettingsPage({
           </p>
         )}
       </section>
-      <section className="panel">
+      <section className="panel" hidden={category !== "feishu"}>
         <div className="section-title">
-          <h2>飞书官方 CLI</h2>
+          <h2>飞书官方 CLI · 可选同步</h2>
           <Badge
             value={
               localCLI?.status === "AVAILABLE"
@@ -182,12 +300,17 @@ export function SettingsPage({
             }
           />
         </div>
+        <ol className="connection-stages">
+          <li>1 · 本机 CLI 可用</li>
+          <li>2 · 本人完成官方授权</li>
+          <li>3 · 验证目标表权限</li>
+        </ol>
         <p>
           CLI：<span className="mono">{view.config.feishu.cli}</span>
         </p>
         <p role="status" aria-label="飞书 CLI 检测结果">
           {discovering
-            ? "正在自动查找并验证飞书 CLI…"
+            ? "正在检测飞书 CLI 并验证已有登录…"
             : localCLI
               ? `${localCLI.message}${localCLI.version ? ` · ${localCLI.version}` : ""}`
               : busy
@@ -197,10 +320,11 @@ export function SettingsPage({
         {localCLI && (
           <p className="hint">可执行文件最近检测：{date(localCLI.at)}</p>
         )}
-        <p>
-          飞书授权：{label(d?.feishuUserAuth || "NOT_TESTED")} · 表结构：
-          {label(d?.feishuTable || "NOT_TESTED")}
+        <p role="status" aria-label="飞书授权状态">
+          飞书授权：{auth?.message ?? label(d?.feishuUserAuth || "NOT_TESTED")}
         </p>
+        {auth && <p className="hint">授权最近验证：{date(auth.at)}</p>}
+        <p>表结构：{label(d?.feishuTable || "NOT_TESTED")}</p>
         <div className="actions">
           <button disabled={busy || discovering} onClick={() => discover(true)}>
             重新查找
@@ -214,22 +338,27 @@ export function SettingsPage({
           >
             开始官方授权
           </button>
+          {view.authPending && (
+            <button onClick={() => perform(() => api.openFeishuAuth())}>
+              打开飞书授权页
+            </button>
+          )}
           <button
-            disabled={!view.authPending}
-            onClick={() => perform(() => api.openFeishuAuth())}
-          >
-            打开飞书授权页
-          </button>
-          <button
-            disabled={busy || !view.authPending}
+            disabled={busy || discovering || localCLI?.status !== "AVAILABLE"}
             onClick={() => start("feishuComplete")}
           >
-            已授权，重新验证
+            {view.authPending ? "完成本次授权" : "验证已有授权"}
           </button>
         </div>
         <p className="hint">
-          自动查找只验证本机可执行文件，不代表飞书已授权；授权和表格权限请点击“检测连接”验证。
+          登录由飞书官方 CLI
+          保存，退出客户端后会保留。打开设置时自动验证已有登录；表格权限可通过“检测连接”单独检测。
         </p>
+        {view.authPending && (
+          <p className="hint">
+            本次授权尚未完成：请在飞书授权页确认，再点击“完成本次授权”。
+          </p>
+        )}
         <p className="hint">
           与招聘网站登录相互独立。需本人在飞书授权页确认；CLI
           本身尚未完成应用配置时，请先按飞书官方流程配置。本版客户端不支持创建飞书应用或代填应用密钥。
@@ -304,10 +433,15 @@ export function SettingsPage({
           CLI，客户端暂不支持。
         </p>
       </section>
-      <section className="panel">
+      <section className="panel" hidden={category !== "model"}>
         <div className="section-title">
           <h2>可选模型</h2>
-          <Badge value={view.modelConnection.status} />
+          <Badge
+            value={
+              modelOptional ? "NOT_CONFIGURED" : view.modelConnection.status
+            }
+            text={modelOptional ? "可选 · 未启用" : undefined}
+          />
         </div>
         <p>
           已配置：
@@ -377,9 +511,9 @@ export function SettingsPage({
           未配置模型也能使用现有规则匹配与人工补充。已有密钥不会回显。
         </p>
       </section>
-      <section className="panel">
+      <section className="panel" hidden={category !== "schedule"}>
         <div className="section-title">
-          <h2>每日查询 · launchd</h2>
+          <h2>每日查询</h2>
           <Badge value={view.schedule.installed ? "VALID" : "NOT_CONFIGURED"} />
         </div>
         <p>时区：{view.timezone}（跟随 macOS 本机时区）</p>
@@ -471,13 +605,20 @@ export function SettingsPage({
           </div>
         )}
       </section>
-      <div className="save-bar">
-        <span>修改配置后先保存，再检测或安装。</span>
+      <div
+        className="save-bar"
+        hidden={!dirty && !["feishu", "model", "schedule"].includes(category)}
+      >
+        <span>
+          {dirty
+            ? "草稿待保存。保存后再检测连接或预览调度。"
+            : "配置与检测结果分别记录。保存时间不会安装调度。"}
+        </span>
         <button className="primary" disabled={busy} onClick={save}>
           保存配置
         </button>
       </div>
-      <section className="panel">
+      <section className="panel" hidden={category !== "data"}>
         <h2>本地数据与诊断</h2>
         <p className="mono">{view.home}</p>
         <div className="actions">
@@ -495,7 +636,7 @@ export function SettingsPage({
             导出脱敏诊断
           </button>
           <button
-            disabled={busy}
+            disabled={!canCheckLock}
             onClick={() => command({ method: "unlock" }, "已清理失效锁")}
           >
             检查并清理失效任务锁

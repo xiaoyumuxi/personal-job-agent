@@ -1,10 +1,16 @@
 import { ProfilePicker, type ProfileChoices } from "./ProfilePicker.js";
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useRef,
+} from "react";
 import { createRoot } from "react-dom/client";
 import type { Command, Snapshot, FileKind } from "../contract.js";
 import { api, label, Badge } from "./shared.js";
 import { Workbench } from "./Workbench.js";
-import { Drawer } from "./Drawer.js";
+import { TaskWorkspace } from "./TaskWorkspace.js";
 import { ProfilePage } from "./ProfilePage.js";
 import { SettingsPage } from "./SettingsPage.js";
 function App() {
@@ -20,6 +26,36 @@ function App() {
     }>();
   const alive = useRef(true),
     queue = useRef<Promise<void>>(Promise.resolve());
+  const [visited, setVisited] = useState<string[]>(["work"]);
+  const [draftCounts, setDraftCounts] = useState<Record<string, number>>({});
+  const workScroll = useRef(0);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const pickerFocus = useRef<HTMLElement | null>(null);
+  const navigate = (next: string) => {
+    if (page === "work" && !selected) workScroll.current = window.scrollY;
+    setVisited((pages) => (pages.includes(next) ? pages : [...pages, next]));
+    setPage(next);
+    if (next === "work") setSelected(undefined);
+  };
+  const select = (id: string) => {
+    if (page === "work" && !selected) {
+      workScroll.current = window.scrollY;
+      returnFocus.current = profilePick
+        ? pickerFocus.current
+        : (document.activeElement as HTMLElement);
+    }
+    setPage("work");
+    setSelected(id);
+  };
+  useLayoutEffect(() => {
+    window.scrollTo(0, page === "work" && !selected ? workScroll.current : 0);
+  }, [page, selected]);
+  const closeTask = () => {
+    setSelected(undefined);
+    requestAnimationFrame(() =>
+      returnFocus.current?.focus({ preventScroll: true }),
+    );
+  };
   const refresh = useCallback(() => {
     queue.current = queue.current
       .catch(() => {})
@@ -76,29 +112,35 @@ function App() {
     jobId?: string,
   ) => {
     if (operation === "apply" && jobId) {
+      pickerFocus.current = document.activeElement as HTMLElement;
       const choices = (await perform(() =>
         api.invoke({ method: "profileVersions" }),
       )) as ProfileChoices | undefined;
       if (choices) setProfilePick({ jobId, choices });
       return;
     }
-    if (jobId) setSelected(jobId);
-    else setSelected("global");
+    select(jobId || "global");
     return command({ method: "start", operation, jobId });
   };
   const importFile = (kind: FileKind) =>
     perform(async () => {
       const result = await api.chooseFile(kind);
       if (result && kind === "jobs") {
-        const v = result as { imported: number; duplicates: number };
-        setNotice(`导入 ${v.imported} 个岗位，跳过 ${v.duplicates} 个重复项`);
+        const v = result as {
+          imported: number;
+          duplicates: number;
+          needsChannel: number;
+        };
+        setNotice(
+          `导入 ${v.imported} 个岗位，跳过 ${v.duplicates} 个重复项${v.needsChannel ? `；${v.needsChannel} 个岗位需要在详情中补充投递入口` : ""}`,
+        );
       } else if (result) setNotice("导入完成，已重新读取验证");
       return result;
     });
   const busy = pending || !!snapshot?.busy || !!snapshot?.lock;
   const row = snapshot?.rows.find((r) => r.job.id === selected);
   return (
-    <div className={`app ${selected ? "with-drawer" : ""}`}>
+    <div className="app">
       <nav className="sidebar" aria-label="主导航">
         <div className="brand">
           <span className="brand-mark">申</span>
@@ -109,16 +151,18 @@ function App() {
         <div className="nav-items">
           {[
             ["work", "投递工作台", "▤"],
-            ["profile", "我的资料", "▧"],
+            ["profile", "简历与资料", "▧"],
             ["settings", "设置与连接", "⚙"],
           ].map(([id, text, icon]) => (
             <button
               key={id}
               className={page === id ? "nav active" : "nav"}
-              onClick={() => setPage(id!)}
+              aria-current={page === id ? "page" : undefined}
+              aria-label={text}
+              onClick={() => navigate(id!)}
             >
               <span aria-hidden>{icon}</span>
-              {text}
+              <span className="nav-text">{text}</span>
             </button>
           ))}
         </div>
@@ -150,10 +194,10 @@ function App() {
           <div className="empty">正在读取原有本地数据库…</div>
         ) : (
           <>
-            {snapshot.run && (
+            {snapshot.run && !(page === "work" && selected) && (
               <button
                 className="run-strip"
-                onClick={() => setSelected(snapshot.run?.jobId || "global")}
+                onClick={() => select(snapshot.run?.jobId || "global")}
               >
                 <span className="dot working" />
                 <strong>{label(snapshot.run.operation)}</strong>
@@ -162,33 +206,53 @@ function App() {
                 <span>查看任务 →</span>
               </button>
             )}
-            {page === "work" && (
+            <div hidden={page !== "work" || !!selected}>
               <Workbench
                 snapshot={snapshot}
                 busy={busy}
-                selected={selected}
-                select={setSelected}
+                select={select}
                 start={start}
                 importJobs={() => importFile("jobs")}
                 refresh={() => command({ method: "snapshot" })}
+                settings={() => navigate("settings")}
+                profile={() => navigate("profile")}
               />
-            )}
-            {page === "profile" && (
-              <ProfilePage
-                busy={busy}
-                perform={perform}
-                importProfile={() => importFile("profile")}
-              />
-            )}
-            {page === "settings" && (
-              <SettingsPage
-                busy={busy}
-                runState={snapshot.run?.at}
-                perform={perform}
+            </div>
+            {page === "work" && selected && (
+              <TaskWorkspace
+                key={selected}
+                snapshot={snapshot}
+                row={row}
+                pending={pending}
+                close={closeTask}
                 command={command}
                 start={start}
-                choose={importFile}
               />
+            )}
+            {visited.includes("profile") && (
+              <div hidden={page !== "profile"}>
+                <ProfilePage
+                  active={page === "profile"}
+                  onDraftCounts={setDraftCounts}
+                  busy={busy}
+                  perform={perform}
+                  importProfile={() => importFile("profile")}
+                />
+              </div>
+            )}
+            {visited.includes("settings") && (
+              <div hidden={page !== "settings"}>
+                <SettingsPage
+                  active={page === "settings"}
+                  canCheckLock={!pending && !snapshot.busy}
+                  busy={busy}
+                  runState={snapshot.run?.at}
+                  perform={perform}
+                  command={command}
+                  start={start}
+                  choose={importFile}
+                />
+              </div>
             )}
           </>
         )}
@@ -203,9 +267,15 @@ function App() {
               company={target.job.company}
               title={target.job.title}
               choices={profilePick.choices}
+              draftCounts={draftCounts}
               previousId={target.application?.profileId}
               busy={busy}
-              cancel={() => setProfilePick(undefined)}
+              cancel={() => {
+                setProfilePick(undefined);
+                requestAnimationFrame(() =>
+                  pickerFocus.current?.focus({ preventScroll: true }),
+                );
+              }}
               choose={async (profileId) => {
                 const result = await command({
                   method: "start",
@@ -215,22 +285,12 @@ function App() {
                 });
                 if (result) {
                   setProfilePick(undefined);
-                  setSelected(target.job.id);
+                  select(target.job.id);
                 }
               }}
             />
           ) : null;
         })()}
-      {selected && snapshot && (
-        <Drawer
-          snapshot={snapshot}
-          row={row}
-          pending={pending}
-          close={() => setSelected(undefined)}
-          command={command}
-          start={start}
-        />
-      )}
     </div>
   );
 }

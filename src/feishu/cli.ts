@@ -171,17 +171,23 @@ export class FeishuCLI implements FeishuTransport {
     try {
       p = obj(JSON.parse(r.stdout));
     } catch {
-      throw new AgentError("AUTH_REQUIRED", "FEISHU_AUTH_REQUIRED");
+      // CLI/network failures do not prove that saved credentials are missing.
+      parseEnvelope(r);
+      throw new AgentError("UNKNOWN", "FEISHU_AUTH_INVALID_OUTPUT");
     }
+    if (p.error || (r.code !== 0 && !p.identities)) parseEnvelope(r);
     const user = obj(obj(p.identities).user);
+    if (typeof user.available !== "boolean")
+      throw new AgentError("UNKNOWN", "FEISHU_AUTH_CHECK_FAILED");
     if (
-      r.code !== 0 ||
       user.available !== true ||
       user.status !== "ready" ||
       p.verified === false ||
       user.verified === false
     )
       throw new AgentError("AUTH_REQUIRED", "FEISHU_AUTH_REQUIRED");
+    if (r.code !== 0)
+      throw new AgentError("UNKNOWN", "FEISHU_AUTH_CHECK_FAILED");
   }
   async check() {
     this.templateVersion = undefined;
